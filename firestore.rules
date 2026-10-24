@@ -1,0 +1,141 @@
+rules_version = '2';
+
+// Regras do BoraLá. Publique em: Console do Firebase > Firestore Database > Regras
+// (ou `npx firebase-tools deploy --only firestore:rules`).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isUser(id) { return signedIn() && request.auth.uid == id; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function text(v, max) { return v is string && v.size() <= max; }
+    function docAt(path) { return /databases/$(database)/documents/$(path); }
+
+    // Perfil privado da conta: só o dono lê e escreve. Papel e e-mail não mudam.
+    match /users/{userId} {
+      allow read: if isUser(userId);
+      allow create: if isUser(userId)
+        && request.resource.data.role in ['client', 'provider']
+        && text(request.resource.data.name, 80);
+      allow update: if isUser(userId)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.email == resource.data.email
+        && text(request.resource.data.name, 80);
+      allow delete: if false;
+    }
+
+    // Perfil público do prestador.
+    match /providers/{providerId} {
+      allow read: if signedIn();
+
+      allow create: if isUser(providerId)
+        && getAfter(docAt('users/' + providerId)).data.role == 'provider'
+        && request.resource.data.rating == 0
+        && request.resource.data.reviewsCount == 0
+        && request.resource.data.completedJobs == 0;
+
+      // O dono edita o próprio perfil, menos a nota. Serviços concluídos só sobem de 1 em 1.
+      // Outro usuário só mexe na nota, e só junto com uma avaliação nova dele para este prestador.
+      allow update: if (
+          isUser(providerId)
+          && !changed().hasAny(['rating', 'reviewsCount', 'lastReviewId'])
+          && (!changed().hasAny(['completedJobs'])
+              || request.resource.data.completedJobs == resource.data.completedJobs + 1)
+        ) || (
+          signedIn() && !isUser(providerId)
+          && changed().hasOnly(['rating', 'reviewsCount', 'lastReviewId'])
+          && request.resource.data.reviewsCount == resource.data.reviewsCount + 1
+          && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
+          && !exists(docAt('reviews/' + request.resource.data.lastReviewId))
+          && getAfter(docAt('reviews/' + request.resource.data.lastReviewId)).data.providerId == providerId
+          && getAfter(docAt('reviews/' + request.resource.data.lastReviewId)).data.clientId == request.auth.uid
+        );
+      allow delete: if false;
+    }
+
+    // Uma avaliação por pedido (o id é o id do pedido), só de pedido concluído do próprio cliente.
+    match /reviews/{bookingId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.clientId == request.auth.uid
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
+        && text(request.resource.data.comment, 1000)
+        && get(docAt('bookings/' + bookingId)).data.clientId == request.auth.uid
+        && get(docAt('bookings/' + bookingId)).data.providerId == request.resource.data.providerId
+        && get(docAt('bookings/' + bookingId)).data.status == 'concluido';
+      allow update, delete: if false;
+    }
+
+    // Pedidos: só cliente e prestador envolvidos enxergam.
+    match /bookings/{bookingId} {
+      function isClient() { return resource.data.clientId == request.auth.uid; }
+      function isProvider() { return resource.data.providerId == request.auth.uid; }
+
+      allow read: if signedIn() && (isClient() || isProvider());
+
+      allow create: if signedIn()
+        && request.resource.data.clientId == request.auth.uid
+        && request.resource.data.providerId != request.auth.uid
+        && exists(docAt('providers/' + request.resource.data.providerId))
+        && request.resource.data.status == 'pendente'
+        && request.resource.data.reviewed == false
+        && request.resource.data.price is number && request.resource.data.price > 0
+        && text(request.resource.data.address, 300);
+
+      // Cliente: atualiza a cópia do próprio nome/foto e marca como avaliado (junto com a avaliação).
+      // Prestador: atualiza a cópia do nome/foto e o status, seguindo pendente → aceito/recusado → concluído.
+      allow update: if signedIn() && (
+        (isClient()
+          && changed().hasOnly(['clientName', 'clientAvatar', 'reviewed'])
+          && (!changed().hasAny(['reviewed'])
+              || (request.resource.data.reviewed == true && existsAfter(docAt('reviews/' + bookingId)))))
+        || (isProvider()
+          && changed().hasOnly(['status', 'providerName', 'providerAvatar'])
+          && (!changed().hasAny(['status'])
+              || (resource.data.status == 'pendente' && request.resource.data.status in ['aceito', 'recusado'])
+              || (resource.data.status == 'aceito' && request.resource.data.status == 'concluido')))
+      );
+      allow delete: if false;
+    }
+
+    // Horários ocupados, públicos para montar a agenda sem expor os pedidos.
+    // O id é "prestador_data_hora": criar um id que já existe conta como update e é recusado,
+    // então dois clientes não conseguem reservar o mesmo horário.
+    match /busySlots/{slotId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.clientId == request.auth.uid
+        && slotId == request.resource.data.providerId + '_' + request.resource.data.date + '_' + request.resource.data.time
+        && getAfter(docAt('bookings/' + request.resource.data.bookingId)).data.clientId == request.auth.uid;
+      allow update: if false;
+      allow delete: if signedIn()
+        && (resource.data.providerId == request.auth.uid || resource.data.clientId == request.auth.uid);
+    }
+
+    // Conversa entre um cliente e um prestador (id "cliente_prestador").
+    match /conversations/{convId} {
+      // resource == null permite checar se a conversa já existe antes de criar
+      allow read: if signedIn() && (resource == null || request.auth.uid in resource.data.participants);
+      allow create: if signedIn()
+        && request.auth.uid in [request.resource.data.clientId, request.resource.data.providerId]
+        && request.resource.data.participants == [request.resource.data.clientId, request.resource.data.providerId]
+        && convId == request.resource.data.clientId + '_' + request.resource.data.providerId;
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.participants
+        && changed().hasOnly(['lastMessage', 'updatedAt', 'clientName', 'clientAvatar', 'providerName', 'providerAvatar']);
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        function isMember() {
+          return request.auth.uid in get(docAt('conversations/' + convId)).data.participants;
+        }
+        allow read: if signedIn() && isMember();
+        allow create: if signedIn() && isMember()
+          && request.resource.data.senderId == request.auth.uid
+          && text(request.resource.data.text, 2000)
+          && request.resource.data.text.size() > 0;
+        allow update, delete: if false;
+      }
+    }
+  }
+}

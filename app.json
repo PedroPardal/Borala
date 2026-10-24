@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "BoraLá",
+    "slug": "borala",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.borala.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#101B31"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-audio",
+      "expo-status-bar",
+      "expo-font",
+      "expo-asset",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "backgroundColor": "#101B31"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "O BoraLá usa sua localização para mostrar prestadores perto de você."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O BoraLá acessa suas fotos para você escolher a foto de perfil e as fotos do portfólio.",
+          "cameraPermission": "O BoraLá usa a câmera para você tirar a foto de perfil."
+        }
+      ]
+    ]
+  }
+}

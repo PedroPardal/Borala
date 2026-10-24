@@ -1,0 +1,17 @@
+rules_version = '2';
+
+// Regras do BoraLá para fotos. Publique em: Console do Firebase > Storage > Regras
+// (ou `npx firebase-tools deploy --only storage`).
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Cada conta só envia fotos para a própria pasta: imagens de até 5 MB.
+    match /users/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
