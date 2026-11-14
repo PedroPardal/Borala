@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
-import { Alert, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Avatar from '../../components/Avatar';
@@ -37,6 +38,11 @@ export default function EditProfileScreen({ navigation }: RootScreenProps<'EditP
   const [phone, setPhone] = useState(profile?.phone ?? '');
   const [bio, setBio] = useState(loggedProvider?.bio ?? '');
   const [saving, setSaving] = useState(false);
+  // o perfil de prestador pode chegar depois de a tela abrir: preenche a bio se ainda não foi editada
+  const bioTouched = useRef(false);
+  useEffect(() => {
+    if (!bioTouched.current && loggedProvider?.bio) setBio(loggedProvider.bio);
+  }, [loggedProvider?.bio]);
 
   const shake = useRef(new Animated.Value(0)).current;
   const doShake = () => {
@@ -63,22 +69,42 @@ export default function EditProfileScreen({ navigation }: RootScreenProps<'EditP
     }
     setSaving(true);
     try {
-      // foto nova vem do aparelho: sobe para o Storage e guarda a URL
-      const avatarUrl = isLocalUri(avatar) ? await uploadImage('avatar', avatar) : avatar;
-      await updateProfile({ name: name.trim(), phone, avatar: avatarUrl });
-      if (isProvider && bio.trim() !== loggedProvider?.bio) await updateLoggedProvider({ bio: bio.trim() });
-      feedback.success();
-      navigation.goBack();
+      // texto primeiro: antes, se o envio da foto falhava, a bio e o nome também não eram salvos
+      if (isProvider && bio.trim() !== (loggedProvider?.bio ?? '')) await updateLoggedProvider({ bio: bio.trim() });
+      const photoIsNew = isLocalUri(avatar);
+      await updateProfile(photoIsNew ? { name: name.trim(), phone } : { name: name.trim(), phone, avatar });
     } catch (e) {
       setSaving(false);
       feedback.error();
       Alert.alert('Não foi possível salvar', firebaseErrorMessage(e));
+      return;
     }
+
+    if (isLocalUri(avatar)) {
+      try {
+        // foto nova vem do aparelho: sobe para o Storage e guarda a URL
+        const avatarUrl = await uploadImage('avatar', avatar);
+        // manda o nome junto: o `profile` desta tela ainda tem o nome antigo até o Firestore responder
+        await updateProfile({ name: name.trim(), avatar: avatarUrl });
+      } catch (e) {
+        console.warn('[avatar]', e);
+        setSaving(false);
+        feedback.error();
+        Alert.alert('Seus dados foram salvos, mas a foto não', firebaseErrorMessage(e));
+        return;
+      }
+    }
+    feedback.success();
+    navigation.goBack();
   };
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={110}
+      >
         <FadeInView style={styles.photoBox}>
           <View>
             <Avatar uri={avatar} size={104} ring={colors.primary} />
@@ -129,7 +155,10 @@ export default function EditProfileScreen({ navigation }: RootScreenProps<'EditP
             <Text style={styles.h}>Bio profissional</Text>
             <TextInput
               value={bio}
-              onChangeText={(v) => setBio(v.slice(0, BIO_MAX))}
+              onChangeText={(v) => {
+                bioTouched.current = true;
+                setBio(v.slice(0, BIO_MAX));
+              }}
               multiline
               placeholder="Conte o que você faz, há quanto tempo e seus diferenciais"
               placeholderTextColor={colors.textMuted}
@@ -140,7 +169,7 @@ export default function EditProfileScreen({ navigation }: RootScreenProps<'EditP
             </Text>
           </FadeInView>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 12 }]}>
         <DuoButton title="Salvar perfil" icon="checkmark" onPress={save} loading={saving} sound="none" />

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -15,9 +16,10 @@ import FadeInView from '../../components/FadeInView';
 import SwitchRoleCard from '../../components/SwitchRoleCard';
 import PriceTableEditor from '../../components/PriceTableEditor';
 import PortfolioEditor from '../../components/PortfolioEditor';
+import LocationMap from '../../components/LocationMap';
 import { useApp } from '../../context/AppContext';
 import { categories } from '../../data/categories';
-import { CategoryId, Provider, WeeklySlot } from '../../types';
+import { CategoryId, GeoPoint, Provider, WeeklySlot } from '../../types';
 import { RootStackParamList } from '../../navigation/types';
 import { colors, radius, spacing } from '../../theme';
 import { feedback, Sound } from '../../services/feedback';
@@ -54,11 +56,12 @@ function ProviderSettings({ me }: { me: Provider }) {
   // cada mudança grava direto no Firestore; se falhar, só avisa
   const save = (patch: Partial<Provider>) => updateLoggedProvider(patch).catch(() => feedback.error());
 
-  const useMyLocation = async () => {
+  const useMyLocation = async (silent = false) => {
     setLocating(true);
     const pos = await refreshLocation();
     if (!pos) {
       setLocating(false);
+      if (silent) return;
       feedback.error();
       Alert.alert('Localização indisponível', 'Permita o acesso à localização para os clientes verem a distância até você.');
       return;
@@ -66,15 +69,23 @@ function ProviderSettings({ me }: { me: Provider }) {
     const area = await describePosition(pos);
     await save({ location: pos, area });
     setLocating(false);
-    feedback.success();
+    if (!silent) feedback.success();
   };
 
-  // animação do "círculo de alcance"
-  const ring = useRef(new Animated.Value(me.radiusKm)).current;
+  // sem localização salva: pega pelo GPS sozinho ao abrir a tela
+  const autoLocated = useRef(false);
   useEffect(() => {
-    Animated.spring(ring, { toValue: me.radiusKm, useNativeDriver: true, speed: 14, bounciness: 10 }).start();
-  }, [me.radiusKm, ring]);
-  const ringScale = ring.interpolate({ inputRange: [RADIUS_MIN, RADIUS_MAX], outputRange: [0.35, 1] });
+    if (me.location || autoLocated.current) return;
+    autoLocated.current = true;
+    useMyLocation(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me.location]);
+
+  // arrastou o pino no mapa: grava o ponto novo e o bairro
+  const movePin = async (pos: GeoPoint) => {
+    const area = await describePosition(pos);
+    save({ location: pos, area });
+  };
 
   const changeRadius = (delta: number) => {
     const next = Math.min(RADIUS_MAX, Math.max(RADIUS_MIN, me.radiusKm + delta));
@@ -107,7 +118,11 @@ function ProviderSettings({ me }: { me: Provider }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={30}
+      >
         <FadeInView style={styles.head}>
           <PressableScale onPress={editProfile}>
             <Avatar uri={me.avatar} size={84} />
@@ -157,12 +172,7 @@ function ProviderSettings({ me }: { me: Provider }) {
         <FadeInView delay={140}>
           <Text style={styles.h}>Raio de atendimento</Text>
           <Card style={styles.radiusCard}>
-            <View style={styles.map}>
-              <Animated.View style={[styles.ring, { transform: [{ scale: ringScale }] }]} />
-              <View style={styles.pin}>
-                <Ionicons name="home" size={18} color={colors.white} />
-              </View>
-            </View>
+            <LocationMap center={me.location ?? null} radiusKm={me.radiusKm} draggable height={220} onChange={movePin} />
             <View style={styles.stepper}>
               <PressableScale sound="none" style={styles.stepBtn} onPress={() => changeRadius(-2)}>
                 <Ionicons name="remove" size={22} color={colors.text} />
@@ -181,7 +191,7 @@ function ProviderSettings({ me }: { me: Provider }) {
               variant={me.location ? 'outline' : 'blue'}
               small
               loading={locating}
-              onPress={useMyLocation}
+              onPress={() => useMyLocation()}
               style={{ alignSelf: 'stretch', marginTop: spacing.lg }}
             />
           </Card>
@@ -254,7 +264,7 @@ function ProviderSettings({ me }: { me: Provider }) {
           </View>
           <DuoButton title="Sair" variant="outline" icon="log-out" onPress={signOut} style={{ marginTop: spacing.xl }} />
         </FadeInView>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
@@ -285,25 +295,6 @@ const styles = StyleSheet.create({
   bio: { flex: 1, fontSize: 15, fontWeight: '500', color: colors.text, lineHeight: 21 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap' },
   radiusCard: { alignItems: 'center' },
-  map: {
-    width: '100%',
-    height: 170,
-    borderRadius: radius.md,
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  ring: {
-    position: 'absolute',
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(255,87,34,0.16)',
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  pin: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: spacing.lg },
   stepBtn: {
     width: 48,

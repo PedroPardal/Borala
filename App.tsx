@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { AppProvider } from './src/context/AppContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { Sound } from './src/services/feedback';
@@ -15,10 +16,14 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <AppProvider>
-        <StatusBar style="dark" />
-        <RootNavigator />
-      </AppProvider>
+      {/* o Android em tela cheia (edge-to-edge) não redimensiona a tela com o teclado;
+          o KeyboardProvider mede o teclado para os campos subirem e não ficarem escondidos */}
+      <KeyboardProvider>
+        <AppProvider>
+          <StatusBar style="dark" />
+          <RootNavigator />
+        </AppProvider>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

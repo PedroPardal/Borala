@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -37,7 +38,11 @@ export default function ClientProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={30}
+      >
         <FadeInView style={styles.head}>
           <PressableScale onPress={() => navigation.navigate('EditProfile')}>
             <Avatar uri={profile.avatar} size={84} />
@@ -123,7 +128,7 @@ export default function ClientProfileScreen() {
         <FadeInView delay={240}>
           <DuoButton title="Sair" variant="outline" icon="log-out" onPress={signOut} style={{ marginTop: spacing.xl }} />
         </FadeInView>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

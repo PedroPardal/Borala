@@ -67,6 +67,14 @@ export function firebaseErrorMessage(e: unknown): string {
     'app/offline': 'Você está sem internet. Conecte-se para fazer isso.',
     'storage/unauthorized': 'Sem permissão para enviar a foto.',
     'storage/retry-limit-exceeded': 'A conexão caiu durante o envio da foto.',
+    'storage/read-failed': 'Não foi possível ler a foto do celular. Escolha outra foto.',
+    // Storage não ativado no console (exige o plano Blaze) ou bucket errado no .env
+    'storage/bucket-not-found': 'O Storage do Firebase não está ativado (Console > Storage > Começar).',
+    'storage/project-not-found': 'O Storage do Firebase não está ativado (Console > Storage > Começar).',
+    'storage/unknown': 'Falha no envio da foto. Confira se o Storage está ativado e as regras publicadas.',
+    'storage/canceled': 'Envio da foto cancelado.',
   };
-  return map[code] ?? 'Algo deu errado. Tente de novo.';
+  if (map[code]) return map[code];
+  // mostra o código para facilitar descobrir o problema
+  return code ? `Algo deu errado (${code}). Tente de novo.` : 'Algo deu errado. Tente de novo.';
 }

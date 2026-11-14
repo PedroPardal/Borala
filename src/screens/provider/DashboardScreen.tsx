@@ -39,7 +39,7 @@ export default function DashboardScreen() {
 function profileChecklist(me: Provider) {
   return [
     { done: !!me.avatar, label: 'Adicione uma foto' },
-    { done: me.bio.trim().length >= 20, label: 'Escreva sua bio' },
+    { done: (me.bio ?? '').trim().length > 0, label: 'Escreva sua bio' },
     { done: me.categories.length > 0, label: 'Escolha suas especialidades', required: true },
     { done: me.priceTable.length > 0, label: 'Cadastre pelo menos um serviço', required: true },
     { done: !!me.location, label: 'Defina sua localização' },

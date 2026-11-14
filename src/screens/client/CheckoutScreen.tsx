@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Avatar from '../../components/Avatar';
@@ -83,8 +84,12 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
   };
 
   return (
-    <View style={styles.flex}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 160 }} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 160 }}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={110}
+      >
         <FadeInView>
           <Card style={styles.providerRow}>
             <Avatar uri={provider.avatar} size={48} />
@@ -173,7 +178,7 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
             <Row label="Total estimado" value={formatBRL(total)} strong />
           </Card>
         </FadeInView>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 12 }]}>
         <DuoButton
@@ -185,7 +190,7 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
           sound="none"
         />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

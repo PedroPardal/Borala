@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../components/Avatar';
 import RatingStars from '../../components/RatingStars';
@@ -60,8 +61,12 @@ export default function ReviewScreen({ route, navigation }: RootScreenProps<'Rev
   };
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={{ padding: spacing.xl, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ padding: spacing.xl, paddingBottom: 140 }}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={110}
+      >
         <View style={{ alignItems: 'center' }}>
           <Avatar uri={booking.providerAvatar} size={84} />
           <Text style={styles.title}>Como foi o serviço com {booking.providerName.split(' ')[0]}?</Text>
@@ -94,7 +99,7 @@ export default function ReviewScreen({ route, navigation }: RootScreenProps<'Rev
             />
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 12 }]}>
         <DuoButton

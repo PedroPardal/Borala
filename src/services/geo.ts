@@ -23,6 +23,22 @@ export async function getCurrentPosition(): Promise<GeoPoint | null> {
   }
 }
 
+/** Endereço completo a partir das coordenadas, para preencher o formulário sozinho. */
+export async function addressFromPosition(p: GeoPoint): Promise<{ street: string; city: string } | null> {
+  try {
+    const [place] = await Location.reverseGeocodeAsync({ latitude: p.lat, longitude: p.lng });
+    if (!place) return null;
+    const street = [place.street, place.streetNumber].filter(Boolean).join(', ') || place.name || '';
+    const uf = place.region && place.region.length <= 3 ? place.region : undefined;
+    const city = [place.district ?? place.subregion, [place.city ?? place.subregion, uf].filter(Boolean).join(' - ')]
+      .filter(Boolean)
+      .join(', ');
+    return { street, city };
+  } catch {
+    return null;
+  }
+}
+
 /** "Bairro, Cidade" a partir das coordenadas, para mostrar no perfil do prestador. */
 export async function describePosition(p: GeoPoint): Promise<string | undefined> {
   try {
