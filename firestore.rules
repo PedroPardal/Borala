@@ -8,16 +8,18 @@ service cloud.firestore {
     function isUser(id) { return signedIn() && request.auth.uid == id; }
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
     function text(v, max) { return v is string && v.size() <= max; }
-    function docAt(path) { return /databases/$(database)/documents/$(path); }
+    // coleção e id em segmentos separados: um "/" dentro de $(...) não divide o caminho
+    function docAt(coll, id) { return /databases/$(database)/documents/$(coll)/$(id); }
 
-    // Perfil privado da conta: só o dono lê e escreve. Papel e e-mail não mudam.
+    // Perfil privado da conta: só o dono lê e escreve. O e-mail não muda; o papel alterna
+    // entre cliente e prestador (a mesma conta pode contratar e divulgar serviços).
     match /users/{userId} {
       allow read: if isUser(userId);
       allow create: if isUser(userId)
         && request.resource.data.role in ['client', 'provider']
         && text(request.resource.data.name, 80);
       allow update: if isUser(userId)
-        && request.resource.data.role == resource.data.role
+        && request.resource.data.role in ['client', 'provider']
         && request.resource.data.email == resource.data.email
         && text(request.resource.data.name, 80);
       allow delete: if false;
@@ -28,7 +30,7 @@ service cloud.firestore {
       allow read: if signedIn();
 
       allow create: if isUser(providerId)
-        && getAfter(docAt('users/' + providerId)).data.role == 'provider'
+        && getAfter(docAt('users', providerId)).data.role == 'provider'
         && request.resource.data.rating == 0
         && request.resource.data.reviewsCount == 0
         && request.resource.data.completedJobs == 0;
@@ -45,9 +47,9 @@ service cloud.firestore {
           && changed().hasOnly(['rating', 'reviewsCount', 'lastReviewId'])
           && request.resource.data.reviewsCount == resource.data.reviewsCount + 1
           && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
-          && !exists(docAt('reviews/' + request.resource.data.lastReviewId))
-          && getAfter(docAt('reviews/' + request.resource.data.lastReviewId)).data.providerId == providerId
-          && getAfter(docAt('reviews/' + request.resource.data.lastReviewId)).data.clientId == request.auth.uid
+          && !exists(docAt('reviews', request.resource.data.lastReviewId))
+          && getAfter(docAt('reviews', request.resource.data.lastReviewId)).data.providerId == providerId
+          && getAfter(docAt('reviews', request.resource.data.lastReviewId)).data.clientId == request.auth.uid
         );
       allow delete: if false;
     }
@@ -60,9 +62,9 @@ service cloud.firestore {
         && request.resource.data.rating is int
         && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
         && text(request.resource.data.comment, 1000)
-        && get(docAt('bookings/' + bookingId)).data.clientId == request.auth.uid
-        && get(docAt('bookings/' + bookingId)).data.providerId == request.resource.data.providerId
-        && get(docAt('bookings/' + bookingId)).data.status == 'concluido';
+        && get(docAt('bookings', bookingId)).data.clientId == request.auth.uid
+        && get(docAt('bookings', bookingId)).data.providerId == request.resource.data.providerId
+        && get(docAt('bookings', bookingId)).data.status == 'concluido';
       allow update, delete: if false;
     }
 
@@ -76,7 +78,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.clientId == request.auth.uid
         && request.resource.data.providerId != request.auth.uid
-        && exists(docAt('providers/' + request.resource.data.providerId))
+        && exists(docAt('providers', request.resource.data.providerId))
         && request.resource.data.status == 'pendente'
         && request.resource.data.reviewed == false
         && request.resource.data.price is number && request.resource.data.price > 0
@@ -88,7 +90,7 @@ service cloud.firestore {
         (isClient()
           && changed().hasOnly(['clientName', 'clientAvatar', 'reviewed'])
           && (!changed().hasAny(['reviewed'])
-              || (request.resource.data.reviewed == true && existsAfter(docAt('reviews/' + bookingId)))))
+              || (request.resource.data.reviewed == true && existsAfter(docAt('reviews', bookingId)))))
         || (isProvider()
           && changed().hasOnly(['status', 'providerName', 'providerAvatar'])
           && (!changed().hasAny(['status'])
@@ -106,7 +108,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.clientId == request.auth.uid
         && slotId == request.resource.data.providerId + '_' + request.resource.data.date + '_' + request.resource.data.time
-        && getAfter(docAt('bookings/' + request.resource.data.bookingId)).data.clientId == request.auth.uid;
+        && getAfter(docAt('bookings', request.resource.data.bookingId)).data.clientId == request.auth.uid;
       allow update: if false;
       allow delete: if signedIn()
         && (resource.data.providerId == request.auth.uid || resource.data.clientId == request.auth.uid);
@@ -127,7 +129,7 @@ service cloud.firestore {
 
       match /messages/{messageId} {
         function isMember() {
-          return request.auth.uid in get(docAt('conversations/' + convId)).data.participants;
+          return request.auth.uid in get(docAt('conversations', convId)).data.participants;
         }
         allow read: if signedIn() && isMember();
         allow create: if signedIn() && isMember()

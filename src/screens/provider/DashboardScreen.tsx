@@ -12,6 +12,8 @@ import RequestCard from '../../components/RequestCard';
 import PressableScale from '../../components/PressableScale';
 import FadeInView from '../../components/FadeInView';
 import EmptyState from '../../components/EmptyState';
+import OfflineBanner from '../../components/OfflineBanner';
+import AdBanner from '../../components/AdBanner';
 import { useApp } from '../../context/AppContext';
 import { ProviderTabParamList } from '../../navigation/types';
 import { Provider } from '../../types';
@@ -46,7 +48,7 @@ function profileChecklist(me: Provider) {
 
 function Dashboard({ me }: { me: Provider }) {
   const navigation = useNavigation<BottomTabNavigationProp<ProviderTabParamList>>();
-  const { bookings, updateLoggedProvider } = useApp();
+  const { bookings, updateLoggedProvider, online: connected } = useApp();
   const [period, setPeriod] = useState<Period>('week');
   const online = me.online;
   const checklist = profileChecklist(me);
@@ -92,6 +94,7 @@ function Dashboard({ me }: { me: Provider }) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}>
+        <OfflineBanner />
         <FadeInView style={styles.head}>
           <Avatar uri={me.avatar} size={48} />
           <View style={{ flex: 1, marginLeft: spacing.md }}>
@@ -102,6 +105,7 @@ function Dashboard({ me }: { me: Provider }) {
           </View>
           <Switch
             value={online}
+            disabled={!connected}
             onValueChange={(v) => {
               v ? feedback.success() : feedback.select();
               updateLoggedProvider({ online: v }).catch(() => feedback.error());
@@ -142,6 +146,8 @@ function Dashboard({ me }: { me: Provider }) {
           <StatCard label="Agendados" value={`${upcoming.length}`} icon="calendar" color={colors.blue} />
           <StatCard label="Avaliação" value={me.reviewsCount ? me.rating.toFixed(1) : '—'} icon="star" color={colors.star} />
         </FadeInView>
+
+        <AdBanner />
 
         {missing.length > 0 && (
           <FadeInView delay={150}>
