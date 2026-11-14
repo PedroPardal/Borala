@@ -12,6 +12,7 @@ import DuoButton from '../../components/DuoButton';
 import AddressForm from '../../components/AddressForm';
 import PressableScale from '../../components/PressableScale';
 import FadeInView from '../../components/FadeInView';
+import SwitchRoleCard from '../../components/SwitchRoleCard';
 import { useApp } from '../../context/AppContext';
 import { RootStackParamList } from '../../navigation/types';
 import { colors, radius, spacing } from '../../theme';
@@ -55,6 +56,10 @@ export default function ClientProfileScreen() {
             onPress={() => navigation.navigate('EditProfile')}
             style={{ marginTop: spacing.md, alignSelf: 'stretch' }}
           />
+        </FadeInView>
+
+        <FadeInView delay={30} style={{ marginBottom: spacing.lg }}>
+          <SwitchRoleCard to="provider" />
         </FadeInView>
 
         <FadeInView delay={60} style={styles.stats}>

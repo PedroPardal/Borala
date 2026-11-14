@@ -10,6 +10,9 @@ import PressableScale from '../../components/PressableScale';
 import Chip from '../../components/Chip';
 import FadeInView from '../../components/FadeInView';
 import EmptyState from '../../components/EmptyState';
+import OfflineBanner from '../../components/OfflineBanner';
+import AdBanner from '../../components/AdBanner';
+import SwitchRoleCard from '../../components/SwitchRoleCard';
 import { useApp } from '../../context/AppContext';
 import { categories } from '../../data/categories';
 import { CategoryId } from '../../types';
@@ -26,7 +29,7 @@ const SORTS: { id: Sort; label: string; icon: 'navigate' | 'star' | 'pricetag' }
 
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { providers, profile, myLocation } = useApp();
+  const { providers, profile, myLocation, session } = useApp();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<CategoryId | null>(null);
   const [sort, setSort] = useState<Sort>('distance');
@@ -36,12 +39,13 @@ export default function HomeScreen() {
     () =>
       providers.filter(
         (p) =>
+          p.id !== session?.uid && // quem também é prestador não contrata a si mesmo
           p.online &&
           p.categories.length > 0 &&
           p.priceTable.length > 0 &&
           (p.distanceKm === undefined || p.distanceKm <= p.radiusKm),
       ),
-    [providers],
+    [providers, session?.uid],
   );
 
   const list = useMemo(() => {
@@ -69,6 +73,7 @@ export default function HomeScreen() {
 
   const header = (
     <View>
+      <OfflineBanner />
       <FadeInView style={styles.top}>
         <View style={{ flex: 1 }}>
           <Text style={styles.hello}>Olá, {firstName} 👋</Text>
@@ -131,6 +136,7 @@ export default function HomeScreen() {
         data={list}
         keyExtractor={(p) => p.id}
         ListHeaderComponent={header}
+        ListFooterComponent={<AdBanner />}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         renderItem={({ item, index }) => (
@@ -140,11 +146,14 @@ export default function HomeScreen() {
         )}
         ListEmptyComponent={
           listed.length === 0 ? (
-            <EmptyState
-              icon="people-outline"
-              title="Ainda não há prestadores por aqui"
-              subtitle="O BoraLá acabou de chegar! Convide quem faz bicos na sua região para se cadastrar como prestador."
-            />
+            <View>
+              <EmptyState
+                icon="people-outline"
+                title="Ainda não há prestadores por aqui"
+                subtitle="O BoraLá acabou de chegar! Convide quem faz bicos na sua região, ou seja o primeiro a divulgar o seu serviço."
+              />
+              <SwitchRoleCard to="provider" />
+            </View>
           ) : (
             <EmptyState icon="search" title="Nenhum prestador encontrado" subtitle="Tente outra categoria ou termo de busca." />
           )

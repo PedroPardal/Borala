@@ -1,0 +1,11 @@
+# O EAS usa este arquivo no lugar do .gitignore ao enviar o projeto para o build na nuvem.
+# É igual ao .gitignore, mas SEM ".env": o build precisa das variáveis EXPO_PUBLIC_FIREBASE_*.
+node_modules/
+.expo/
+dist/
+*.log
+.DS_Store
+.env.local
+.firebase/
+android/
+ios/

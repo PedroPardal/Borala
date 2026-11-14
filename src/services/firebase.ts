@@ -64,6 +64,7 @@ export function firebaseErrorMessage(e: unknown): string {
     'auth/operation-not-allowed': 'O login por e-mail/senha está desativado no Firebase.',
     'permission-denied': 'Você não tem permissão para fazer isso.',
     unavailable: 'Servidor indisponível. Verifique sua internet.',
+    'app/offline': 'Você está sem internet. Conecte-se para fazer isso.',
     'storage/unauthorized': 'Sem permissão para enviar a foto.',
     'storage/retry-limit-exceeded': 'A conexão caiu durante o envio da foto.',
   };

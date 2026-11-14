@@ -12,6 +12,7 @@ import PressableScale from '../../components/PressableScale';
 import SettingsRow from '../../components/SettingsRow';
 import RatingStars from '../../components/RatingStars';
 import FadeInView from '../../components/FadeInView';
+import SwitchRoleCard from '../../components/SwitchRoleCard';
 import PriceTableEditor from '../../components/PriceTableEditor';
 import PortfolioEditor from '../../components/PortfolioEditor';
 import { useApp } from '../../context/AppContext';
@@ -248,6 +249,9 @@ function ProviderSettings({ me }: { me: Provider }) {
               }}
             />
           </Card>
+          <View style={{ marginTop: spacing.xl }}>
+            <SwitchRoleCard to="client" />
+          </View>
           <DuoButton title="Sair" variant="outline" icon="log-out" onPress={signOut} style={{ marginTop: spacing.xl }} />
         </FadeInView>
       </ScrollView>

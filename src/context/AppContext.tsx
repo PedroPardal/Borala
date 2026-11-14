@@ -36,6 +36,8 @@ import { defaultAvailability } from '../data/categories';
 import { fb, isFirebaseConfigured } from '../services/firebase';
 import { uploadUserImage } from '../services/uploads';
 import { distanceKm, getCurrentPosition } from '../services/geo';
+import { requireOnline, useOnline } from '../services/network';
+import { clearOfflineSnapshot, loadOfflineSnapshot, saveOfflineSnapshot } from '../services/offlineCache';
 import { toISODate } from '../utils/format';
 
 interface Session {
@@ -72,6 +74,8 @@ interface AppContextValue {
   signUp: (p: { role: UserRole; name: string; email: string; password: string }) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** troca a conta entre contratar (cliente) e divulgar serviços (prestador) */
+  switchRole: (next: UserRole) => Promise<void>;
 
   updateProfile: (patch: ProfilePatch) => Promise<void>;
   /** envia uma foto local para o Storage da conta e devolve a URL */
@@ -94,6 +98,11 @@ interface AppContextValue {
   conversations: Conversation[];
   getOrCreateConversation: (parties: ConversationParties) => Promise<string>;
   sendMessage: (conv: Conversation, text: string) => Promise<void>;
+
+  /** há internet agora */
+  online: boolean;
+  /** quando os pedidos foram sincronizados com o servidor pela última vez (ms) */
+  lastSync: number | null;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -118,11 +127,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [myLocation, setMyLocation] = useState<GeoPoint | null>(null);
+  const [lastSync, setLastSync] = useState<number | null>(null);
+  const online = useOnline();
   // durante o cadastro o perfil ainda está sendo gravado; não criar um perfil padrão por cima
   const signingUp = useRef(false);
+  // o que já chegou do Firestore nesta sessão; a cópia salva no aparelho nunca passa por cima disso
+  const live = useRef({ profile: false, providers: false, bookings: false, conversations: false });
 
   const uid = authUser?.uid;
   const role = profile?.role;
+
+  // abre com a última cópia salva no aparelho (funciona sem internet)
+  useEffect(() => {
+    live.current = { profile: false, providers: false, bookings: false, conversations: false };
+    setLastSync(null);
+    if (!uid) return;
+    let cancelled = false;
+    loadOfflineSnapshot(uid).then((saved) => {
+      if (cancelled || !saved) return;
+      if (!live.current.profile && saved.profile) setProfile(saved.profile);
+      if (!live.current.providers) setRawProviders(saved.providers ?? []);
+      if (!live.current.bookings) {
+        setBookings(saved.bookings ?? []);
+        setLastSync(saved.syncedAt ?? null);
+      }
+      if (!live.current.conversations) setConversations(saved.conversations ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [uid]);
+
+  // guarda a cópia sempre que algo muda (com um pequeno atraso para juntar várias mudanças)
+  useEffect(() => {
+    if (!uid || !profile || profile.id !== uid) return;
+    const t = setTimeout(() => {
+      saveOfflineSnapshot(uid, { profile, providers: rawProviders, bookings, conversations, syncedAt: lastSync });
+    }, 800);
+    return () => clearTimeout(t);
+  }, [uid, profile, rawProviders, bookings, conversations, lastSync]);
 
   useEffect(() => {
     if (!isFirebaseConfigured) return;
@@ -143,6 +186,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ref,
       (snap) => {
         if (snap.exists()) {
+          live.current.profile = true;
           setProfile(withId<UserProfile>(snap.id, snap.data()));
         } else if (!snap.metadata.fromCache && !signingUp.current) {
           // conta criada fora do app (ex.: pelo console): vira cliente com perfil vazio
@@ -164,19 +208,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     return onSnapshot(
       collection(fb.db, 'providers'),
-      (snap) => setRawProviders(snap.docs.map((d) => withId<Provider>(d.id, d.data()))),
+      (snap) => {
+        // sem internet ao abrir, o Firestore responde "vazio" do cache em memória: manter a cópia salva
+        if (snap.metadata.fromCache && snap.empty) return;
+        live.current.providers = true;
+        setRawProviders(snap.docs.map((d) => withId<Provider>(d.id, d.data())));
+      },
       onListenError,
     );
   }, [uid]);
 
   // pedidos em que sou cliente ou prestador
+  const lastRole = useRef(role);
   useEffect(() => {
     if (!uid || !role) {
       setBookings([]);
       return;
     }
+    // trocou de modo: os pedidos do modo anterior não valem mais
+    if (lastRole.current && lastRole.current !== role) {
+      live.current.bookings = false;
+      setBookings([]);
+    }
+    lastRole.current = role;
     const q = query(collection(fb.db, 'bookings'), where(role === 'client' ? 'clientId' : 'providerId', '==', uid));
-    return onSnapshot(q, (snap) => setBookings(snap.docs.map((d) => withId<Booking>(d.id, d.data()))), onListenError);
+    return onSnapshot(
+      q,
+      { includeMetadataChanges: true },
+      (snap) => {
+        if (snap.metadata.fromCache && snap.empty) return;
+        live.current.bookings = true;
+        setBookings(snap.docs.map((d) => withId<Booking>(d.id, d.data())));
+        if (!snap.metadata.fromCache) setLastSync(Date.now());
+      },
+      onListenError,
+    );
   }, [uid, role]);
 
   // conversas em que participo, mais recentes primeiro
@@ -188,10 +254,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const q = query(collection(fb.db, 'conversations'), where('participants', 'array-contains', uid));
     return onSnapshot(
       q,
-      (snap) =>
+      (snap) => {
+        if (snap.metadata.fromCache && snap.empty) return;
+        live.current.conversations = true;
         setConversations(
           snap.docs.map((d) => withId<Conversation>(d.id, d.data())).sort((a, b) => b.updatedAt - a.updatedAt),
-        ),
+        );
+      },
       onListenError,
     );
   }, [uid]);
@@ -270,8 +339,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     setMyLocation(null);
+    // a cópia offline tem dados pessoais: não deixar no aparelho depois de sair
+    if (uid) await clearOfflineSnapshot(uid);
     await fbSignOut(fb.auth);
-  }, []);
+  }, [uid]);
+
+  const switchRole = useCallback(
+    async (next: UserRole) => {
+      if (!uid || !profile || profile.role === next) return;
+      requireOnline();
+      const batch = writeBatch(fb.db);
+      batch.update(doc(fb.db, 'users', uid), { role: next });
+      if (next === 'provider') {
+        // primeira vez como prestador: cria o perfil público (vazio até ele cadastrar os serviços)
+        const providerRef = doc(fb.db, 'providers', uid);
+        const existing = await getDoc(providerRef);
+        if (!existing.exists()) {
+          const provider: Omit<Provider, 'id' | 'distanceKm'> = {
+            name: profile.name,
+            avatar: profile.avatar,
+            bio: '',
+            categories: [],
+            rating: 0,
+            reviewsCount: 0,
+            basePrice: 0,
+            radiusKm: 10,
+            completedJobs: 0,
+            priceTable: [],
+            portfolio: [],
+            availability: defaultAvailability,
+            online: true,
+            location: null,
+            createdAt: Date.now(),
+          };
+          batch.set(providerRef, provider);
+        }
+      }
+      await batch.commit();
+    },
+    [uid, profile],
+  );
 
   const uploadImage = useCallback(
     (name: string, localUri: string) => {
@@ -304,6 +411,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateProfile = useCallback(
     async (patch: ProfilePatch) => {
       if (!uid || !profile) return;
+      requireOnline();
       await updateDoc(doc(fb.db, 'users', uid), patch);
       const identityChanged =
         (patch.name !== undefined && patch.name !== profile.name) || (patch.avatar !== undefined && patch.avatar !== profile.avatar);
@@ -319,6 +427,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateLoggedProvider = useCallback(
     async (patch: Partial<Provider>) => {
       if (!uid) return;
+      requireOnline();
       // campos calculados ou controlados pelas avaliações nunca são gravados pelo dono
       const { id: _id, distanceKm: _d, rating: _r, reviewsCount: _c, ...data } = patch;
       await updateDoc(doc(fb.db, 'providers', uid), data);
@@ -331,6 +440,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const createBooking = useCallback(
     async (b: NewBooking) => {
       if (!uid || !profile) throw new Error('Sem login');
+      requireOnline();
       const bookingRef = doc(collection(fb.db, 'bookings'));
       const booking: Omit<Booking, 'id'> = {
         providerId: b.provider.id,
@@ -369,6 +479,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setBookingStatus = useCallback(
     async (b: Booking, status: BookingStatus) => {
+      requireOnline();
       const batch = writeBatch(fb.db);
       batch.update(doc(fb.db, 'bookings', b.id), { status });
       if (status === 'recusado') batch.delete(doc(fb.db, 'busySlots', `${b.providerId}_${b.date}_${b.time}`));
@@ -381,6 +492,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addReview = useCallback(
     async (b: Booking, rating: number, comment: string) => {
       if (!uid || !profile) return;
+      requireOnline();
       const providerRef = doc(fb.db, 'providers', b.providerId);
       await runTransaction(fb.db, async (tx) => {
         const snap = await tx.get(providerRef);
@@ -407,6 +519,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ---- chat ----
 
   const getOrCreateConversation = useCallback(async (p: ConversationParties) => {
+    requireOnline();
     const id = `${p.clientId}_${p.providerId}`;
     const ref = doc(fb.db, 'conversations', id);
     const snap = await getDoc(ref);
@@ -429,6 +542,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const sendMessage = useCallback(
     async (conv: Conversation, text: string) => {
       if (!uid || !role) return;
+      requireOnline();
       const createdAt = Date.now();
       const batch = writeBatch(fb.db);
       batch.set(doc(collection(fb.db, 'conversations', conv.id, 'messages')), { from: role, senderId: uid, text, createdAt });
@@ -447,6 +561,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       signUp,
       resetPassword,
       signOut,
+      switchRole,
       updateProfile,
       uploadImage,
       myLocation,
@@ -462,8 +577,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       conversations,
       getOrCreateConversation,
       sendMessage,
+      online,
+      lastSync,
     }),
     [
+      online,
+      lastSync,
       authResolved,
       uid,
       session,
@@ -472,6 +591,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       signUp,
       resetPassword,
       signOut,
+      switchRole,
       updateProfile,
       uploadImage,
       myLocation,
