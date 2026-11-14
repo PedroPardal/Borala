@@ -34,7 +34,8 @@ import {
 } from '../types';
 import { defaultAvailability } from '../data/categories';
 import { fb, isFirebaseConfigured } from '../services/firebase';
-import { uploadUserImage } from '../services/uploads';
+import { savePhoto } from '../services/photos';
+import { t } from '../i18n';
 import { distanceKm, getCurrentPosition } from '../services/geo';
 import { requireOnline, useOnline } from '../services/network';
 import { clearOfflineSnapshot, loadOfflineSnapshot, saveOfflineSnapshot } from '../services/offlineCache';
@@ -78,8 +79,8 @@ interface AppContextValue {
   switchRole: (next: UserRole) => Promise<void>;
 
   updateProfile: (patch: ProfilePatch) => Promise<void>;
-  /** envia uma foto local para o Storage da conta e devolve a URL */
-  uploadImage: (name: string, localUri: string) => Promise<string>;
+  /** salva uma foto escolhida (data URI de `pickImage`) e devolve a referência para gravar no perfil */
+  uploadImage: (photo: string) => Promise<string>;
 
   myLocation: GeoPoint | null;
   refreshLocation: () => Promise<GeoPoint | null>;
@@ -115,7 +116,7 @@ function onListenError(e: { code?: string }) {
   console.warn('[firestore]', e);
   if (e.code === 'permission-denied' && !warnedRules) {
     warnedRules = true;
-    Alert.alert('Sem permissão no banco', 'Publique as regras do arquivo firestore.rules no Console do Firebase.');
+    Alert.alert(t('rules.title'), t('rules.body'));
   }
 }
 
@@ -381,9 +382,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const uploadImage = useCallback(
-    (name: string, localUri: string) => {
+    async (photo: string) => {
       if (!uid) throw new Error('Sem login');
-      return uploadUserImage(uid, name, localUri);
+      requireOnline();
+      return savePhoto(uid, photo);
     },
     [uid],
   );

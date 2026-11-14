@@ -1,21 +1,22 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Avatar from './Avatar';
 import DuoButton from './DuoButton';
 import { cardStyle } from './Card';
 import { Booking, BookingStatus } from '../types';
-import { colors, spacing } from '../theme';
+import { colors, spacing, makeStyles } from '../theme';
+import { t, TKey } from '../i18n';
 import { formatBRL, formatDateLong } from '../utils/format';
 
-const STATUS: Record<BookingStatus, { label: string; color: string }> = {
-  pendente: { label: 'Pendente', color: colors.primary },
-  aceito: { label: 'Agendado', color: colors.blue },
-  recusado: { label: 'Recusado', color: colors.danger },
-  concluido: { label: 'Concluído', color: colors.success },
+const STATUS_COLOR: Record<BookingStatus, string> = {
+  pendente: colors.primary,
+  aceito: colors.blue,
+  recusado: colors.danger,
+  concluido: colors.success,
 };
 
-const PAYMENT = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' } as const;
+const paymentLabel = (p: Booking['payment']) => t(`pay.${p}` as TKey);
 
 interface Props {
   booking: Booking;
@@ -28,10 +29,10 @@ interface Props {
 }
 
 export function StatusBadge({ status }: { status: BookingStatus }) {
-  const s = STATUS[status];
+  const color = STATUS_COLOR[status];
   return (
-    <View style={[styles.badge, { backgroundColor: `${s.color}22` }]}>
-      <Text style={[styles.badgeText, { color: s.color }]}>{s.label}</Text>
+    <View style={[styles.badge, { backgroundColor: `${color}22` }]}>
+      <Text style={[styles.badgeText, { color }]}>{t(`status.${status}` as TKey)}</Text>
     </View>
   );
 }
@@ -67,15 +68,15 @@ export default function RequestCard({ booking, title, avatar, onAccept, onDeclin
       <View style={styles.meta}>
         <Meta icon="calendar" text={`${formatDateLong(booking.date)} • ${booking.time}`} />
         <Meta icon="location" text={booking.address} />
-        <Meta icon="wallet" text={`${PAYMENT[booking.payment]} • ${formatBRL(booking.price)}`} />
+        <Meta icon="wallet" text={`${paymentLabel(booking.payment)} • ${formatBRL(booking.price)}`} />
         {booking.notes ? <Meta icon="chatbubble-ellipses" text={`"${booking.notes}"`} /> : null}
       </View>
 
       {booking.status === 'pendente' && onAccept && onDecline && (
         <View style={styles.actions}>
-          <DuoButton title="Recusar" variant="outline" small style={{ flex: 1 }} onPress={() => leave(onDecline, -1)} sound="none" />
+          <DuoButton title={t('req.decline')} variant="outline" small style={{ flex: 1 }} onPress={() => leave(onDecline, -1)} sound="none" />
           <View style={{ width: spacing.md }} />
-          <DuoButton title="Aceitar" icon="checkmark" small style={{ flex: 1 }} onPress={() => leave(onAccept)} sound="none" />
+          <DuoButton title={t('req.accept')} icon="checkmark" small style={{ flex: 1 }} onPress={() => leave(onAccept)} sound="none" />
         </View>
       )}
       {footer}
@@ -94,8 +95,8 @@ function Meta({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: stri
   );
 }
 
-const styles = StyleSheet.create({
-  card: { ...cardStyle, marginBottom: spacing.md },
+const styles = makeStyles(() => ({
+  card: { ...cardStyle(), marginBottom: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center' },
   title: { fontSize: 16, fontWeight: '800', color: colors.text },
   service: { fontSize: 13, fontWeight: '600', color: colors.textMuted, marginTop: 2 },
@@ -105,4 +106,4 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center' },
   metaText: { marginLeft: 8, fontSize: 13, fontWeight: '600', color: colors.text, flex: 1 },
   actions: { flexDirection: 'row', marginTop: spacing.lg },
-});
+}));

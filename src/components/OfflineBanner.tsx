@@ -1,12 +1,16 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
-import { colors, radius, spacing } from '../theme';
+import { colors, radius, spacing, makeStyles } from '../theme';
+import { localeTag, t } from '../i18n';
 
 function formatSync(ms: number) {
   const d = new Date(ms);
-  return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  return t('date.at', {
+    date: d.toLocaleDateString(localeTag()),
+    time: d.toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' }),
+  });
 }
 
 /** Aviso de "sem internet": os dados mostrados são a última cópia salva no aparelho. */
@@ -17,17 +21,16 @@ export default function OfflineBanner() {
     <View style={styles.box}>
       <Ionicons name="cloud-offline" size={20} color={colors.onSecondary} />
       <View style={{ flex: 1, marginLeft: spacing.sm }}>
-        <Text style={styles.title}>Você está offline</Text>
+        <Text style={styles.title}>{t('offline.title')}</Text>
         <Text style={styles.sub}>
-          {lastSync ? `Mostrando dados salvos em ${formatSync(lastSync)}.` : 'Mostrando os dados salvos no aparelho.'} Para aceitar pedidos ou
-          conversar, conecte-se à internet.
+          {lastSync ? t('offline.savedAt', { when: formatSync(lastSync) }) : t('offline.saved')} {t('offline.connect')}
         </Text>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   box: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -40,4 +43,4 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 14, fontWeight: '900', color: colors.text },
   sub: { fontSize: 12, fontWeight: '600', color: colors.textMuted, marginTop: 2 },
-});
+}));

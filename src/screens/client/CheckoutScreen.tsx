@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Text, TextInput, View } from 'react-native';
 import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,15 +13,16 @@ import EmptyState from '../../components/EmptyState';
 import { useApp } from '../../context/AppContext';
 import { PaymentMethod, PriceItem, Provider } from '../../types';
 import { RootScreenProps } from '../../navigation/types';
-import { colors, radius, spacing } from '../../theme';
-import { formatBRL, formatDateLong } from '../../utils/format';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t } from '../../i18n';
+import { formatBRL, formatDateAt } from '../../utils/format';
 import { feedback } from '../../services/feedback';
 import { firebaseErrorMessage } from '../../services/firebase';
 
-const METHODS: { id: PaymentMethod; label: string; desc: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
-  { id: 'pix', label: 'Pix', desc: 'Aprovação instantânea', icon: 'flash', color: '#32BCAD' },
-  { id: 'cartao', label: 'Cartão', desc: 'Crédito ou débito', icon: 'card', color: colors.blue },
-  { id: 'dinheiro', label: 'Dinheiro', desc: 'Pague ao prestador', icon: 'cash', color: colors.primary },
+const methods = (): { id: PaymentMethod; label: string; desc: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] => [
+  { id: 'pix', label: t('pay.pix'), desc: t('pay.pixDesc'), icon: 'flash', color: '#32BCAD' },
+  { id: 'cartao', label: t('pay.cartao'), desc: t('pay.cartaoDesc'), icon: 'card', color: colors.blue },
+  { id: 'dinheiro', label: t('pay.dinheiro'), desc: t('pay.dinheiroDesc'), icon: 'cash', color: colors.primary },
 ];
 
 const SERVICE_FEE = 0.08; // taxa da plataforma (o pagamento é combinado com o prestador; ainda não há cobrança no app)
@@ -31,7 +32,7 @@ export default function CheckoutScreen(props: RootScreenProps<'Checkout'>) {
   const provider = getProvider(props.route.params.providerId);
   const service = provider?.priceTable.find((s) => s.id === props.route.params.serviceId);
   if (!provider || !service) {
-    return <EmptyState icon="alert-circle-outline" title="Serviço indisponível" subtitle="O prestador alterou ou removeu esse serviço." />;
+    return <EmptyState icon="alert-circle-outline" title={t('common.serviceUnavailable')} subtitle={t('common.serviceUnavailableSub')} />;
   }
   return <Checkout {...props} provider={provider} service={service} />;
 }
@@ -76,8 +77,8 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
       const code = (e as { code?: string }).code;
       // o id do horário já existe: alguém reservou primeiro
       Alert.alert(
-        code === 'permission-denied' ? 'Horário indisponível' : 'Não foi possível agendar',
-        code === 'permission-denied' ? 'Esse horário acabou de ser reservado. Escolha outro.' : firebaseErrorMessage(e),
+        code === 'permission-denied' ? t('checkout.slotTaken') : t('checkout.failed'),
+        code === 'permission-denied' ? t('checkout.slotTakenSub') : firebaseErrorMessage(e),
       );
       if (code === 'permission-denied') navigation.goBack();
     }
@@ -95,22 +96,20 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
             <Avatar uri={provider.avatar} size={48} />
             <View style={{ flex: 1, marginLeft: spacing.md }}>
               <Text style={styles.bold}>{service.title}</Text>
-              <Text style={styles.muted}>com {provider.name}</Text>
+              <Text style={styles.muted}>{t('checkout.with', { name: provider.name })}</Text>
               <View style={styles.when}>
                 <Ionicons name="calendar" size={14} color={colors.primary} />
-                <Text style={styles.whenText}>
-                  {formatDateLong(date)} às {time}
-                </Text>
+                <Text style={styles.whenText}>{formatDateAt(date, time)}</Text>
               </View>
             </View>
           </Card>
         </FadeInView>
 
         <FadeInView delay={60}>
-          <Text style={styles.h}>Endereço</Text>
+          <Text style={styles.h}>{t('checkout.address')}</Text>
           {addresses.length === 0 && (
             <Card>
-              <Text style={[styles.muted, { marginBottom: spacing.md }]}>Onde o serviço vai ser feito?</Text>
+              <Text style={[styles.muted, { marginBottom: spacing.md }]}>{t('checkout.where')}</Text>
               <AddressForm
                 onSave={async (a) => {
                   await updateProfile({ addresses: [a] });
@@ -136,9 +135,9 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
         </FadeInView>
 
         <FadeInView delay={120}>
-          <Text style={styles.h}>Pagamento</Text>
+          <Text style={styles.h}>{t('checkout.payment')}</Text>
           <View style={styles.methods}>
-            {METHODS.map((m) => {
+            {methods().map((m) => {
               const active = m.id === payment;
               return (
                 <PressableScale
@@ -159,11 +158,11 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
         </FadeInView>
 
         <FadeInView delay={180}>
-          <Text style={styles.h}>Observações</Text>
+          <Text style={styles.h}>{t('checkout.notes')}</Text>
           <TextInput
             value={notes}
             onChangeText={setNotes}
-            placeholder="Ex.: portão azul, tem cachorro, levar escada…"
+            placeholder={t('checkout.notesPh')}
             placeholderTextColor={colors.textMuted}
             multiline
             style={styles.notes}
@@ -173,16 +172,16 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
         <FadeInView delay={240}>
           <Card style={{ marginTop: spacing.xl }}>
             <Row label={service.title} value={formatBRL(service.price)} />
-            <Row label="Taxa da plataforma" value={formatBRL(fee)} />
+            <Row label={t('checkout.fee')} value={formatBRL(fee)} />
             <View style={styles.divider} />
-            <Row label="Total estimado" value={formatBRL(total)} strong />
+            <Row label={t('checkout.total')} value={formatBRL(total)} strong />
           </Card>
         </FadeInView>
       </KeyboardAwareScrollView>
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 12 }]}>
         <DuoButton
-          title={address ? `Confirmar • ${formatBRL(total)}` : 'Adicione um endereço'}
+          title={address ? t('checkout.confirm', { total: formatBRL(total) }) : t('checkout.addAddress')}
           icon="checkmark-circle"
           disabled={!address}
           loading={loading}
@@ -203,18 +202,18 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   flex: { flex: 1, backgroundColor: colors.bg },
   providerRow: { flexDirection: 'row', alignItems: 'center' },
   bold: { fontSize: 15, fontWeight: '800', color: colors.text },
   muted: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
   when: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-  whenText: { marginLeft: 6, fontWeight: '700', color: colors.primaryDark, fontSize: 13 },
+  whenText: { marginLeft: 6, fontWeight: '700', color: colors.primaryText, fontSize: 13 },
   h: { fontSize: 18, fontWeight: '800', color: colors.text, marginTop: spacing.xl, marginBottom: spacing.md },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 2,
     borderBottomWidth: 4,
@@ -227,7 +226,7 @@ const styles = StyleSheet.create({
   method: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 2,
     borderBottomWidth: 5,
@@ -238,7 +237,7 @@ const styles = StyleSheet.create({
   methodIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   notes: {
     minHeight: 90,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.border,
@@ -251,7 +250,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 4 },
   divider: { height: 2, backgroundColor: colors.border, marginVertical: spacing.sm },
   totalLabel: { fontSize: 16, fontWeight: '800', color: colors.text },
-  totalValue: { fontSize: 20, fontWeight: '900', color: colors.primaryDark },
+  totalValue: { fontSize: 20, fontWeight: '900', color: colors.primaryText },
   bottom: {
     position: 'absolute',
     bottom: 0,
@@ -259,8 +258,8 @@ const styles = StyleSheet.create({
     right: 0,
     padding: spacing.lg,
     paddingTop: 12,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderTopWidth: 2,
     borderTopColor: colors.border,
   },
-});
+}));

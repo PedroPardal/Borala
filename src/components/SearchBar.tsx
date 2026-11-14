@@ -1,7 +1,8 @@
 import React from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius } from '../theme';
+import { colors, radius, makeStyles } from '../theme';
+import { t } from '../i18n';
 
 interface Props {
   value: string;
@@ -9,7 +10,7 @@ interface Props {
   placeholder?: string;
 }
 
-export default function SearchBar({ value, onChangeText, placeholder = 'Buscar serviço ou prestador' }: Props) {
+export default function SearchBar({ value, onChangeText, placeholder = t('search.placeholder') }: Props) {
   return (
     <View style={styles.wrap}>
       <Ionicons name="search" size={20} color={colors.textMuted} />
@@ -30,11 +31,11 @@ export default function SearchBar({ value, onChangeText, placeholder = 'Buscar s
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.border,
@@ -42,4 +43,4 @@ const styles = StyleSheet.create({
     height: 52,
   },
   input: { flex: 1, marginLeft: 10, fontSize: 15, fontWeight: '600', color: colors.text },
-});
+}));

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
-import { colors } from '../theme';
+import { Animated, Text, View } from 'react-native';
+import { colors, makeStyles } from '../theme';
 import { formatBRL } from '../utils/format';
 
 interface Bar {
@@ -38,7 +38,7 @@ export default function BarChart({ data, height = 140 }: { data: Bar[]; height?:
                   styles.bar,
                   {
                     height: anims[i]?.interpolate({ inputRange: [0, 1], outputRange: [4, Math.max(4, h)] }) ?? 4,
-                    backgroundColor: i === best ? colors.navy : d.value ? colors.primary : colors.border,
+                    backgroundColor: i === best ? colors.text : d.value ? colors.primary : colors.border,
                   },
                 ]}
               />
@@ -57,11 +57,11 @@ export default function BarChart({ data, height = 140 }: { data: Bar[]; height?:
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   row: { flexDirection: 'row', alignItems: 'flex-end' },
   col: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
   bar: { width: '60%', borderRadius: 8 },
-  top: { fontSize: 10, fontWeight: '800', color: colors.navy, marginBottom: 4 },
+  top: { fontSize: 10, fontWeight: '800', color: colors.text, marginBottom: 4 },
   labels: { flexDirection: 'row', marginTop: 6 },
   label: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700', color: colors.textMuted },
-});
+}));

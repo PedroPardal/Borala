@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Text, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,26 +10,27 @@ import Card from '../../components/Card';
 import Chip from '../../components/Chip';
 import DuoButton from '../../components/DuoButton';
 import PressableScale from '../../components/PressableScale';
-import SettingsRow from '../../components/SettingsRow';
+
 import RatingStars from '../../components/RatingStars';
 import FadeInView from '../../components/FadeInView';
 import SwitchRoleCard from '../../components/SwitchRoleCard';
 import PriceTableEditor from '../../components/PriceTableEditor';
 import PortfolioEditor from '../../components/PortfolioEditor';
 import LocationMap from '../../components/LocationMap';
+import PreferencesCard from '../../components/PreferencesCard';
 import { useApp } from '../../context/AppContext';
 import { categories } from '../../data/categories';
 import { CategoryId, GeoPoint, Provider, WeeklySlot } from '../../types';
 import { RootStackParamList } from '../../navigation/types';
-import { colors, radius, spacing } from '../../theme';
-import { feedback, Sound } from '../../services/feedback';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t, TKey, tList } from '../../i18n';
+import { feedback } from '../../services/feedback';
 import { describePosition } from '../../services/geo';
 
-const DAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
-const PERIODS: { id: string; label: string; slots: string[] }[] = [
-  { id: 'manha', label: 'Manhã', slots: ['07:00', '08:00', '09:00', '10:00'] },
-  { id: 'tarde', label: 'Tarde', slots: ['13:00', '14:00', '15:00'] },
-  { id: 'fim', label: 'Fim de tarde', slots: ['16:00', '17:00'] },
+const PERIODS: { id: string; label: TKey; slots: string[] }[] = [
+  { id: 'manha', label: 'ps.morning', slots: ['07:00', '08:00', '09:00', '10:00'] },
+  { id: 'tarde', label: 'ps.afternoon', slots: ['13:00', '14:00', '15:00'] },
+  { id: 'fim', label: 'ps.evening', slots: ['16:00', '17:00'] },
 ];
 const RADIUS_MIN = 2;
 const RADIUS_MAX = 30;
@@ -50,8 +51,9 @@ function ProviderSettings({ me }: { me: Provider }) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { profile, updateLoggedProvider, uploadImage, refreshLocation, signOut } = useApp();
   const editProfile = () => navigation.navigate('EditProfile');
-  const [soundOn, setSoundOn] = useState(Sound.isEnabled());
   const [locating, setLocating] = useState(false);
+  // letra de cada dia da semana, começando no domingo
+  const days = tList('date.weekdayLetters');
 
   // cada mudança grava direto no Firestore; se falhar, só avisa
   const save = (patch: Partial<Provider>) => updateLoggedProvider(patch).catch(() => feedback.error());
@@ -63,7 +65,7 @@ function ProviderSettings({ me }: { me: Provider }) {
       setLocating(false);
       if (silent) return;
       feedback.error();
-      Alert.alert('Localização indisponível', 'Permita o acesso à localização para os clientes verem a distância até você.');
+      Alert.alert(t('ps.locUnavailable'), t('ps.locUnavailableSub'));
       return;
     }
     const area = await describePosition(pos);
@@ -134,18 +136,18 @@ function ProviderSettings({ me }: { me: Provider }) {
           {me.reviewsCount > 0 ? (
             <RatingStars rating={me.rating} showValue count={me.reviewsCount} size={15} />
           ) : (
-            <Text style={styles.contact}>Ainda sem avaliações</Text>
+            <Text style={styles.contact}>{t('ps.noReviews')}</Text>
           )}
           {!!profile?.phone && <Text style={styles.contact}>{profile.phone}</Text>}
-          <DuoButton title="Editar perfil" icon="create" variant="outline" small onPress={editProfile} style={styles.editBtn} />
+          <DuoButton title={t('common.editProfile')} icon="create" variant="outline" small onPress={editProfile} style={styles.editBtn} />
         </FadeInView>
 
         <FadeInView delay={60}>
-          <Text style={styles.h}>Bio profissional</Text>
+          <Text style={styles.h}>{t('common.bio')}</Text>
           <PressableScale onPress={editProfile} scaleTo={0.98}>
             <Card style={styles.bioCard}>
               <Text style={[styles.bio, !me.bio && { color: colors.textMuted }]}>
-                {me.bio || 'Conte o que você faz, há quanto tempo e seus diferenciais.'}
+                {me.bio || t('ps.bioPh')}
               </Text>
               <Ionicons name="pencil" size={16} color={colors.textMuted} />
             </Card>
@@ -153,8 +155,8 @@ function ProviderSettings({ me }: { me: Provider }) {
         </FadeInView>
 
         <FadeInView delay={100}>
-          <Text style={styles.h}>Especialidades</Text>
-          {me.categories.length === 0 && <Text style={styles.needed}>Escolha pelo menos uma para aparecer nas buscas.</Text>}
+          <Text style={styles.h}>{t('ps.categories')}</Text>
+          {me.categories.length === 0 && <Text style={styles.needed}>{t('ps.categoriesNeeded')}</Text>}
           <View style={styles.wrap}>
             {categories.map((c) => (
               <Chip
@@ -170,7 +172,7 @@ function ProviderSettings({ me }: { me: Provider }) {
         </FadeInView>
 
         <FadeInView delay={140}>
-          <Text style={styles.h}>Raio de atendimento</Text>
+          <Text style={styles.h}>{t('ps.radius')}</Text>
           <Card style={styles.radiusCard}>
             <LocationMap center={me.location ?? null} radiusKm={me.radiusKm} draggable height={220} onChange={movePin} />
             <View style={styles.stepper}>
@@ -179,14 +181,14 @@ function ProviderSettings({ me }: { me: Provider }) {
               </PressableScale>
               <View style={{ alignItems: 'center' }}>
                 <Text style={styles.radiusValue}>{me.radiusKm} km</Text>
-                <Text style={styles.muted}>{me.area ? `a partir de ${me.area}` : 'a partir da sua localização'}</Text>
+                <Text style={styles.muted}>{me.area ? t('ps.fromArea', { area: me.area }) : t('ps.fromLocation')}</Text>
               </View>
               <PressableScale sound="none" style={styles.stepBtn} onPress={() => changeRadius(2)}>
                 <Ionicons name="add" size={22} color={colors.text} />
               </PressableScale>
             </View>
             <DuoButton
-              title={me.location ? 'Atualizar localização' : 'Usar minha localização'}
+              title={me.location ? t('ps.updateLocation') : t('ps.useLocation')}
               icon="locate"
               variant={me.location ? 'outline' : 'blue'}
               small
@@ -198,11 +200,11 @@ function ProviderSettings({ me }: { me: Provider }) {
         </FadeInView>
 
         <FadeInView delay={180}>
-          <Text style={styles.h}>Horários disponíveis</Text>
+          <Text style={styles.h}>{t('ps.hours')}</Text>
           <Card>
             <View style={styles.gridRow}>
               <View style={styles.gridLabel} />
-              {DAYS.map((d, i) => (
+              {days.map((d, i) => (
                 <Text key={i} style={styles.gridHead}>
                   {d}
                 </Text>
@@ -210,8 +212,8 @@ function ProviderSettings({ me }: { me: Provider }) {
             </View>
             {PERIODS.map((p) => (
               <View key={p.id} style={styles.gridRow}>
-                <Text style={styles.gridLabel}>{p.label}</Text>
-                {DAYS.map((_, day) => {
+                <Text style={styles.gridLabel}>{t(p.label)}</Text>
+                {days.map((_, day) => {
                   const on = hasPeriod(day, p.id);
                   return (
                     <PressableScale
@@ -231,8 +233,8 @@ function ProviderSettings({ me }: { me: Provider }) {
         </FadeInView>
 
         <FadeInView delay={220}>
-          <Text style={styles.h}>Tabela de preços</Text>
-          {me.priceTable.length === 0 && <Text style={styles.needed}>Cadastre pelo menos um serviço para aparecer nas buscas.</Text>}
+          <Text style={styles.h}>{t('common.priceTable')}</Text>
+          {me.priceTable.length === 0 && <Text style={styles.needed}>{t('ps.priceNeeded')}</Text>}
           <PriceTableEditor
             items={me.priceTable}
             onSave={(priceTable) => save({ priceTable, basePrice: priceTable.length ? Math.min(...priceTable.map((p) => p.price)) : 0 })}
@@ -240,43 +242,31 @@ function ProviderSettings({ me }: { me: Provider }) {
         </FadeInView>
 
         <FadeInView delay={240}>
-          <Text style={styles.h}>Antes e depois</Text>
+          <Text style={styles.h}>{t('ps.portfolio')}</Text>
           <PortfolioEditor items={me.portfolio} upload={uploadImage} onChange={(portfolio) => updateLoggedProvider({ portfolio })} />
         </FadeInView>
 
         <FadeInView delay={260}>
-          <Text style={styles.h}>Preferências</Text>
-          <Card>
-            <SettingsRow
-              icon="volume-high"
-              label="Efeitos sonoros"
-              toggle={{
-                value: soundOn,
-                onChange: (v) => {
-                  Sound.setEnabled(v);
-                  setSoundOn(v);
-                },
-              }}
-            />
-          </Card>
+          <Text style={styles.h}>{t('common.preferences')}</Text>
+          <PreferencesCard />
           <View style={{ marginTop: spacing.xl }}>
             <SwitchRoleCard to="client" />
           </View>
-          <DuoButton title="Sair" variant="outline" icon="log-out" onPress={signOut} style={{ marginTop: spacing.xl }} />
+          <DuoButton title={t('common.signOut')} variant="outline" icon="log-out" onPress={signOut} style={{ marginTop: spacing.xl }} />
         </FadeInView>
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   head: { alignItems: 'center', marginVertical: spacing.lg, gap: 6 },
   name: { fontSize: 22, fontWeight: '900', color: colors.text, marginTop: spacing.sm },
   h: { fontSize: 18, fontWeight: '800', color: colors.text, marginTop: spacing.xl, marginBottom: spacing.md },
   muted: { fontSize: 12, fontWeight: '600', color: colors.textMuted },
   contact: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
-  needed: { fontSize: 13, fontWeight: '700', color: colors.primaryDark, marginTop: -4, marginBottom: spacing.sm },
+  needed: { fontSize: 13, fontWeight: '700', color: colors.primaryText, marginTop: -4, marginBottom: spacing.sm },
   editBtn: { alignSelf: 'stretch', marginTop: spacing.sm },
   editBadge: {
     position: 'absolute',
@@ -287,7 +277,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: colors.primary,
     borderWidth: 3,
-    borderColor: colors.white,
+    borderColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -300,14 +290,14 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderWidth: 2,
     borderBottomWidth: 4,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radiusValue: { fontSize: 26, fontWeight: '900', color: colors.primaryDark },
+  radiusValue: { fontSize: 26, fontWeight: '900', color: colors.primaryText },
   gridRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 4 },
   gridLabel: { width: 84, fontSize: 12, fontWeight: '800', color: colors.text },
   gridHead: { flex: 1, textAlign: 'center', fontWeight: '800', color: colors.textMuted },
@@ -321,4 +311,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cellOn: { backgroundColor: colors.primary },
-});
+}));

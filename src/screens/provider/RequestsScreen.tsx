@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -10,14 +10,15 @@ import EmptyState from '../../components/EmptyState';
 import { useApp } from '../../context/AppContext';
 import { Booking, BookingStatus } from '../../types';
 import { RootStackParamList } from '../../navigation/types';
-import { colors, radius, spacing } from '../../theme';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t, TKey } from '../../i18n';
 import { feedback } from '../../services/feedback';
 import { firebaseErrorMessage } from '../../services/firebase';
 
-const TABS: { id: BookingStatus; label: string }[] = [
-  { id: 'pendente', label: 'Pendentes' },
-  { id: 'aceito', label: 'Aceitos' },
-  { id: 'recusado', label: 'Recusados' },
+const TABS: { id: BookingStatus; label: TKey }[] = [
+  { id: 'pendente', label: 'req.pending' },
+  { id: 'aceito', label: 'req.accepted' },
+  { id: 'recusado', label: 'req.declined' },
 ];
 
 export default function RequestsScreen() {
@@ -41,25 +42,25 @@ export default function RequestsScreen() {
   const changeStatus = (b: Booking, status: BookingStatus) =>
     setBookingStatus(b, status).catch((e) => {
       feedback.error();
-      Alert.alert('Não foi possível atualizar', firebaseErrorMessage(e));
+      Alert.alert(t('req.updateFailed'), firebaseErrorMessage(e));
     });
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Solicitações</Text>
+        <Text style={styles.title}>{t('req.title')}</Text>
         <View style={styles.segment}>
-          {TABS.map((t) => (
+          {TABS.map((item) => (
             <Pressable
-              key={t.id}
+              key={item.id}
               onPress={() => {
                 feedback.select();
-                setTab(t.id);
+                setTab(item.id);
               }}
-              style={[styles.segItem, tab === t.id && styles.segActive]}
+              style={[styles.segItem, tab === item.id && styles.segActive]}
             >
-              <Text style={[styles.segText, tab === t.id && { color: colors.primary }]}>
-                {t.label} {count(t.id) > 0 ? `(${count(t.id)})` : ''}
+              <Text style={[styles.segText, tab === item.id && { color: colors.primary }]}>
+                {t(item.label)} {count(item.id) > 0 ? `(${count(item.id)})` : ''}
               </Text>
             </Pressable>
           ))}
@@ -74,8 +75,8 @@ export default function RequestsScreen() {
         ListEmptyComponent={
           <EmptyState
             icon={tab === 'pendente' ? 'checkmark-done-circle-outline' : 'file-tray-outline'}
-            title={tab === 'pendente' ? 'Tudo em dia! 🎉' : 'Nada por aqui'}
-            subtitle={tab === 'pendente' ? 'Você respondeu todas as solicitações.' : undefined}
+            title={tab === 'pendente' ? t('req.allDone') : t('req.empty')}
+            subtitle={tab === 'pendente' ? t('req.allDoneSub') : undefined}
           />
         }
         renderItem={({ item, index }) => (
@@ -99,7 +100,7 @@ export default function RequestsScreen() {
                       small
                       variant="outline"
                       icon="chatbubble-ellipses"
-                      title="Chat"
+                      title={t('common.chat')}
                       style={{ flex: 1 }}
                       onPress={() => openChat(item)}
                     />
@@ -107,7 +108,7 @@ export default function RequestsScreen() {
                     <DuoButton
                       small
                       icon="checkmark-done"
-                      title="Concluir"
+                      title={t('req.complete')}
                       style={{ flex: 1 }}
                       sound="none"
                       onPress={() => {
@@ -126,13 +127,13 @@ export default function RequestsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   header: { padding: spacing.lg },
   title: { fontSize: 26, fontWeight: '900', color: colors.text, marginBottom: spacing.md },
   segment: { flexDirection: 'row', backgroundColor: colors.border, borderRadius: radius.md, padding: 4 },
   segItem: { flex: 1, paddingVertical: 10, borderRadius: radius.sm, alignItems: 'center' },
-  segActive: { backgroundColor: colors.white },
+  segActive: { backgroundColor: colors.card },
   segText: { fontWeight: '800', color: colors.textMuted, fontSize: 13 },
   actions: { flexDirection: 'row', marginTop: spacing.lg },
-});
+}));

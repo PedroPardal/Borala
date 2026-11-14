@@ -4,6 +4,7 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
+    "go": "expo start --go --tunnel ngrok --clear",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
@@ -25,6 +26,7 @@
     "expo-dev-client": "~58.0.20",
     "expo-font": "~58.0.12",
     "expo-haptics": "~58.0.8",
+    "expo-image-manipulator": "~58.0.16",
     "expo-image-picker": "~58.0.10",
     "expo-location": "~58.0.22",
     "expo-splash-screen": "~58.0.14",

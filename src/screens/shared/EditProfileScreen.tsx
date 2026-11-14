@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, ScrollView, Text, TextInput, View } from 'react-native';
 import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,11 +10,12 @@ import PressableScale from '../../components/PressableScale';
 import FadeInView from '../../components/FadeInView';
 import { useApp } from '../../context/AppContext';
 import { RootScreenProps } from '../../navigation/types';
-import { colors, radius, spacing } from '../../theme';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t } from '../../i18n';
 import { feedback } from '../../services/feedback';
 import { firebaseErrorMessage } from '../../services/firebase';
 import { pickImage } from '../../services/pickImage';
-import { isLocalUri } from '../../services/uploads';
+import { isUnsavedPhoto } from '../../services/photos';
 
 const PRESET_AVATARS = [3, 8, 11, 16, 26, 31, 36, 49, 57, 65].map((n) => `https://i.pravatar.cc/200?img=${n}`);
 const BIO_MAX = 240;
@@ -71,26 +72,26 @@ export default function EditProfileScreen({ navigation }: RootScreenProps<'EditP
     try {
       // texto primeiro: antes, se o envio da foto falhava, a bio e o nome também não eram salvos
       if (isProvider && bio.trim() !== (loggedProvider?.bio ?? '')) await updateLoggedProvider({ bio: bio.trim() });
-      const photoIsNew = isLocalUri(avatar);
+      const photoIsNew = isUnsavedPhoto(avatar);
       await updateProfile(photoIsNew ? { name: name.trim(), phone } : { name: name.trim(), phone, avatar });
     } catch (e) {
       setSaving(false);
       feedback.error();
-      Alert.alert('Não foi possível salvar', firebaseErrorMessage(e));
+      Alert.alert(t('common.couldNotSave'), firebaseErrorMessage(e));
       return;
     }
 
-    if (isLocalUri(avatar)) {
+    if (isUnsavedPhoto(avatar)) {
       try {
-        // foto nova vem do aparelho: sobe para o Storage e guarda a URL
-        const avatarUrl = await uploadImage('avatar', avatar);
+        // foto nova escolhida agora: salva no banco e grava a referência no perfil
+        const avatarRef = await uploadImage(avatar);
         // manda o nome junto: o `profile` desta tela ainda tem o nome antigo até o Firestore responder
-        await updateProfile({ name: name.trim(), avatar: avatarUrl });
+        await updateProfile({ name: name.trim(), avatar: avatarRef });
       } catch (e) {
         console.warn('[avatar]', e);
         setSaving(false);
         feedback.error();
-        Alert.alert('Seus dados foram salvos, mas a foto não', firebaseErrorMessage(e));
+        Alert.alert(t('edit.savedNoPhoto'), firebaseErrorMessage(e));
         return;
       }
     }
@@ -115,17 +116,17 @@ export default function EditProfileScreen({ navigation }: RootScreenProps<'EditP
           <View style={styles.photoActions}>
             <PressableScale style={styles.photoBtn} onPress={() => pickFrom('gallery')}>
               <Ionicons name="images" size={16} color={colors.blue} />
-              <Text style={styles.photoBtnText}>Galeria</Text>
+              <Text style={styles.photoBtnText}>{t('edit.gallery')}</Text>
             </PressableScale>
             <PressableScale style={styles.photoBtn} onPress={() => pickFrom('camera')}>
               <Ionicons name="camera" size={16} color={colors.blue} />
-              <Text style={styles.photoBtnText}>Tirar foto</Text>
+              <Text style={styles.photoBtnText}>{t('edit.camera')}</Text>
             </PressableScale>
           </View>
         </FadeInView>
 
         <FadeInView delay={60}>
-          <Text style={styles.h}>Ou escolha um avatar</Text>
+          <Text style={styles.h}>{t('edit.presets')}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 4 }}>
             {PRESET_AVATARS.map((uri) => (
               <PressableScale key={uri} sound="select" onPress={() => setAvatar(uri)} style={{ marginRight: spacing.sm }}>
@@ -136,13 +137,13 @@ export default function EditProfileScreen({ navigation }: RootScreenProps<'EditP
         </FadeInView>
 
         <FadeInView delay={120}>
-          <Text style={styles.h}>Seus dados</Text>
+          <Text style={styles.h}>{t('edit.yourData')}</Text>
           <Animated.View style={{ transform: [{ translateX: shake }] }}>
-            <TextField icon="person" placeholder="Nome completo" value={name} onChangeText={setName} />
+            <TextField icon="person" placeholder={t('edit.fullName')} value={name} onChangeText={setName} />
             <TextField icon="mail" value={profile?.email ?? ''} editable={false} style={{ color: colors.textMuted }} />
             <TextField
               icon="call"
-              placeholder="Telefone (opcional)"
+              placeholder={t('edit.phone')}
               keyboardType="phone-pad"
               value={phone}
               onChangeText={(v) => setPhone(maskPhone(v))}
@@ -152,7 +153,7 @@ export default function EditProfileScreen({ navigation }: RootScreenProps<'EditP
 
         {isProvider && (
           <FadeInView delay={180}>
-            <Text style={styles.h}>Bio profissional</Text>
+            <Text style={styles.h}>{t('common.bio')}</Text>
             <TextInput
               value={bio}
               onChangeText={(v) => {
@@ -160,7 +161,7 @@ export default function EditProfileScreen({ navigation }: RootScreenProps<'EditP
                 setBio(v.slice(0, BIO_MAX));
               }}
               multiline
-              placeholder="Conte o que você faz, há quanto tempo e seus diferenciais"
+              placeholder={t('edit.bioPh')}
               placeholderTextColor={colors.textMuted}
               style={styles.input}
             />
@@ -172,13 +173,13 @@ export default function EditProfileScreen({ navigation }: RootScreenProps<'EditP
       </KeyboardAwareScrollView>
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 12 }]}>
-        <DuoButton title="Salvar perfil" icon="checkmark" onPress={save} loading={saving} sound="none" />
+        <DuoButton title={t('edit.save')} icon="checkmark" onPress={save} loading={saving} sound="none" />
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   flex: { flex: 1, backgroundColor: colors.bg },
   photoBox: { alignItems: 'center', marginTop: spacing.sm },
   cameraBadge: {
@@ -190,7 +191,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: colors.primary,
     borderWidth: 3,
-    borderColor: colors.white,
+    borderColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -208,7 +209,7 @@ const styles = StyleSheet.create({
   h: { fontSize: 16, fontWeight: '800', color: colors.text, marginTop: spacing.xl, marginBottom: spacing.md },
   input: {
     minHeight: 110,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.border,
@@ -226,8 +227,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     padding: spacing.lg,
     paddingTop: 12,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderTopWidth: 2,
     borderTopColor: colors.border,
   },
-});
+}));

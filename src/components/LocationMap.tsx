@@ -3,7 +3,8 @@ import { ActivityIndicator, StyleSheet, Text, View, ViewStyle } from 'react-nati
 import { WebView, WebViewMessageEvent, WebViewProps } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { GeoPoint } from '../types';
-import { colors, radius as r } from '../theme';
+import { colors, radius as r, makeStyles } from '../theme';
+import { t } from '../i18n';
 
 // os tipos da WebView (componente de classe) não batem com os do React 19; o componente funciona igual
 const Web = WebView as unknown as React.ComponentType<WebViewProps & { ref?: React.Ref<WebView> }>;
@@ -68,12 +69,12 @@ export default function LocationMap({
       {!center ? (
         <View style={styles.placeholder}>
           <Ionicons name="map-outline" size={36} color={colors.primary} />
-          <Text style={styles.placeholderText}>Ative a localização para ver o mapa</Text>
+          <Text style={styles.placeholderText}>{t('map.enable')}</Text>
         </View>
       ) : failed ? (
         <View style={styles.placeholder}>
           <Ionicons name="cloud-offline-outline" size={36} color={colors.textMuted} />
-          <Text style={styles.placeholderText}>Sem internet para carregar o mapa</Text>
+          <Text style={styles.placeholderText}>{t('map.offline')}</Text>
         </View>
       ) : (
         <>
@@ -98,7 +99,7 @@ export default function LocationMap({
           )}
           {draggable && ready && (
             <View style={styles.hint} pointerEvents="none">
-              <Text style={styles.hintText}>Arraste o pino para ajustar</Text>
+              <Text style={styles.hintText}>{t('map.drag')}</Text>
             </View>
           )}
         </>
@@ -152,7 +153,7 @@ function buildHtml(draggable: boolean) {
 </script></body></html>`;
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   wrap: { width: '100%', borderRadius: r.md, overflow: 'hidden', backgroundColor: colors.primaryLight },
   web: { flex: 1, backgroundColor: 'transparent' },
   loading: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryLight },
@@ -168,4 +169,4 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   hintText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-});
+}));

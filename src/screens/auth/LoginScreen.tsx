@@ -3,7 +3,6 @@ import {
   Alert,
   Animated,
   Pressable,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -17,15 +16,17 @@ import FadeInView from '../../components/FadeInView';
 import { LogoMark, Wordmark } from '../../components/Logo';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
-import { colors, radius, spacing } from '../../theme';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t } from '../../i18n';
 import { feedback } from '../../services/feedback';
 import { firebaseErrorMessage } from '../../services/firebase';
+import { LanguagePicker } from '../../components/PreferencesCard';
 
 type Mode = 'login' | 'signup';
 
-const ROLES: { id: UserRole; title: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
-  { id: 'client', title: 'Quero contratar', subtitle: 'De entregas a reparos, tem gente perto de você', icon: 'search', color: colors.blue },
-  { id: 'provider', title: 'Quero trabalhar', subtitle: 'Faça seus bicos no seu tempo', icon: 'flash', color: colors.primary },
+const roles = (): { id: UserRole; title: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] => [
+  { id: 'client', title: t('login.roleClient'), subtitle: t('login.roleClientSub'), icon: 'search', color: colors.blue },
+  { id: 'provider', title: t('login.roleProvider'), subtitle: t('login.roleProviderSub'), icon: 'flash', color: colors.primary },
 ];
 
 export default function LoginScreen() {
@@ -61,9 +62,9 @@ export default function LoginScreen() {
   };
 
   const submit = async () => {
-    if (!email.includes('@')) return fail('Digite um e-mail válido.');
-    if (password.length < 6) return fail('A senha precisa ter pelo menos 6 caracteres.');
-    if (mode === 'signup' && name.trim().length < 2) return fail('Digite seu nome.');
+    if (!email.includes('@')) return fail(t('login.invalidEmail'));
+    if (password.length < 6) return fail(t('login.shortPassword'));
+    if (mode === 'signup' && name.trim().length < 2) return fail(t('login.nameRequired'));
     setError(null);
     setLoading(true);
     try {
@@ -78,11 +79,11 @@ export default function LoginScreen() {
   };
 
   const forgot = async () => {
-    if (!email.includes('@')) return fail('Digite seu e-mail acima para receber o link.');
+    if (!email.includes('@')) return fail(t('login.forgotNeedsEmail'));
     try {
       await resetPassword(email);
       feedback.success();
-      Alert.alert('Confira seu e-mail', `Enviamos um link para redefinir a senha para ${email.trim()}.`);
+      Alert.alert(t('login.resetSentTitle'), t('login.resetSentBody', { email: email.trim() }));
     } catch (e) {
       fail(firebaseErrorMessage(e));
     }
@@ -98,8 +99,8 @@ export default function LoginScreen() {
               <LogoMark size={96} style={styles.logo} />
             </Animated.View>
             <Wordmark size={40} style={{ marginTop: 14 }} />
-            <Text style={styles.slogan}>AGORA VAI!</Text>
-            <Text style={styles.tagline}>Trabalhe e encontre serviços no seu tempo.</Text>
+            <Text style={styles.slogan}>{t('login.slogan')}</Text>
+            <Text style={styles.tagline}>{t('login.tagline')}</Text>
           </FadeInView>
 
           <FadeInView delay={100} style={styles.segment}>
@@ -114,7 +115,7 @@ export default function LoginScreen() {
                 style={[styles.segmentItem, mode === m && styles.segmentActive]}
               >
                 <Text style={[styles.segmentText, mode === m && { color: colors.primary }]}>
-                  {m === 'login' ? 'Entrar' : 'Criar conta'}
+                  {m === 'login' ? t('login.signIn') : t('login.signUp')}
                 </Text>
               </Pressable>
             ))}
@@ -122,9 +123,9 @@ export default function LoginScreen() {
 
           {mode === 'signup' && (
             <FadeInView delay={60}>
-              <Text style={styles.label}>Como você quer usar o app?</Text>
+              <Text style={styles.label}>{t('login.howUse')}</Text>
               <View style={styles.roles}>
-                {ROLES.map((r) => {
+                {roles().map((r) => {
                   const active = role === r.id;
                   return (
                     <PressableScale
@@ -152,10 +153,10 @@ export default function LoginScreen() {
 
           <FadeInView delay={160}>
             <Animated.View style={{ transform: [{ translateX: shake }] }}>
-              {mode === 'signup' && <TextField icon="person" placeholder="Seu nome" value={name} onChangeText={setName} />}
+              {mode === 'signup' && <TextField icon="person" placeholder={t('login.yourName')} value={name} onChangeText={setName} />}
               <TextField
                 icon="mail"
-                placeholder="E-mail"
+                placeholder={t('login.email')}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
@@ -164,7 +165,7 @@ export default function LoginScreen() {
               />
               <TextField
                 icon="lock-closed"
-                placeholder={mode === 'signup' ? 'Crie uma senha (mín. 6 caracteres)' : 'Senha'}
+                placeholder={mode === 'signup' ? t('login.newPassword') : t('login.password')}
                 secureTextEntry
                 autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                 value={password}
@@ -180,7 +181,7 @@ export default function LoginScreen() {
             )}
 
             <DuoButton
-              title={mode === 'login' ? 'Entrar' : 'Criar conta'}
+              title={mode === 'login' ? t('login.signIn') : t('login.signUp')}
               onPress={submit}
               loading={loading}
               sound="none"
@@ -189,16 +190,20 @@ export default function LoginScreen() {
             />
             {mode === 'login' && (
               <Pressable onPress={forgot} hitSlop={10}>
-                <Text style={styles.link}>Esqueci minha senha</Text>
+                <Text style={styles.link}>{t('login.forgot')}</Text>
               </Pressable>
             )}
+          </FadeInView>
+
+          <FadeInView delay={220} style={styles.lang}>
+            <LanguagePicker />
           </FadeInView>
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   container: { padding: spacing.xl, paddingBottom: 48 },
   hero: {
@@ -214,7 +219,7 @@ const styles = StyleSheet.create({
   },
   logo: { borderWidth: 2, borderColor: colors.navyLight },
   slogan: { fontSize: 14, fontWeight: '900', color: colors.secondary, letterSpacing: 2, marginTop: 6 },
-  tagline: { fontSize: 14, fontWeight: '600', color: colors.borderDark, marginTop: 4, textAlign: 'center' },
+  tagline: { fontSize: 14, fontWeight: '600', color: '#CBD5E1', marginTop: 4, textAlign: 'center' },
   segment: {
     flexDirection: 'row',
     backgroundColor: colors.border,
@@ -223,7 +228,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   segmentItem: { flex: 1, paddingVertical: 10, borderRadius: radius.sm, alignItems: 'center' },
-  segmentActive: { backgroundColor: colors.white },
+  segmentActive: { backgroundColor: colors.card },
   segmentText: { fontWeight: '800', color: colors.textMuted },
   label: { fontSize: 16, fontWeight: '800', color: colors.text, marginBottom: spacing.md },
   roles: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.xl },
@@ -232,7 +237,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderBottomWidth: 5,
     borderColor: colors.border,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: spacing.lg,
     minHeight: 150,
@@ -244,4 +249,5 @@ const styles = StyleSheet.create({
   error: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.sm },
   errorText: { flex: 1, color: colors.danger, fontWeight: '700', fontSize: 13 },
   link: { textAlign: 'center', color: colors.blue, fontSize: 14, fontWeight: '800', marginTop: spacing.lg },
-});
+  lang: { marginTop: spacing.xl },
+}));

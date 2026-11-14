@@ -1,8 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import PressableScale from './PressableScale';
-import { colors, radius } from '../theme';
+import { colors, radius, makeStyles } from '../theme';
 
 interface Props {
   label: string;
@@ -22,7 +22,7 @@ export default function Chip({ label, selected, onPress, icon, color = colors.pr
         styles.chip,
         selected
           ? { backgroundColor: color, borderColor: color, borderBottomColor: 'rgba(0,0,0,0.25)' }
-          : { backgroundColor: colors.white },
+          : { backgroundColor: colors.card },
       ]}
     >
       {icon && <Ionicons name={icon} size={16} color={selected ? colors.white : color} style={{ marginRight: 6 }} />}
@@ -31,7 +31,7 @@ export default function Chip({ label, selected, onPress, icon, color = colors.pr
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -45,4 +45,4 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   text: { fontWeight: '700', fontSize: 14 },
-});
+}));

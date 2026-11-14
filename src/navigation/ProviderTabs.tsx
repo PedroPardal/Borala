@@ -9,6 +9,7 @@ import ConversationsScreen from '../screens/shared/ConversationsScreen';
 import ProviderSettingsScreen from '../screens/provider/ProviderSettingsScreen';
 import { feedback } from '../services/feedback';
 import { useApp } from '../context/AppContext';
+import { t } from '../i18n';
 
 const Tab = createBottomTabNavigator<ProviderTabParamList>();
 
@@ -22,25 +23,25 @@ export default function ProviderTabs() {
       <Tab.Screen
         name="Dashboard"
         component={DashboardScreen}
-        options={({ navigation }) => ({ title: 'Painel', tabBarIcon: () => <TabIcon name="stats-chart" focused={navigation.isFocused()} /> })}
+        options={({ navigation }) => ({ title: t('nav.dashboard'), tabBarIcon: () => <TabIcon name="stats-chart" focused={navigation.isFocused()} /> })}
       />
       <Tab.Screen
         name="Requests"
         component={RequestsScreen}
         options={({ navigation }) => ({
-          title: 'Solicitações',
+          title: t('nav.requests'),
           tabBarIcon: () => <TabIcon name="notifications" focused={navigation.isFocused()} badge={pending} />,
         })}
       />
       <Tab.Screen
         name="Messages"
         component={ConversationsScreen}
-        options={({ navigation }) => ({ title: 'Mensagens', tabBarIcon: () => <TabIcon name="chatbubbles" focused={navigation.isFocused()} /> })}
+        options={({ navigation }) => ({ title: t('nav.messages'), tabBarIcon: () => <TabIcon name="chatbubbles" focused={navigation.isFocused()} /> })}
       />
       <Tab.Screen
         name="ProviderSettings"
         component={ProviderSettingsScreen}
-        options={({ navigation }) => ({ title: 'Perfil', tabBarIcon: () => <TabIcon name="person" focused={navigation.isFocused()} /> })}
+        options={({ navigation }) => ({ title: t('nav.profile'), tabBarIcon: () => <TabIcon name="person" focused={navigation.isFocused()} /> })}
       />
     </Tab.Navigator>
   );

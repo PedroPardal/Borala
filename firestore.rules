@@ -114,6 +114,19 @@ service cloud.firestore {
         && (resource.data.providerId == request.auth.uid || resource.data.clientId == request.auth.uid);
     }
 
+    // Fotos (perfil e antes/depois) como JPEG em base64, já reduzidas no celular.
+    // O id começa com o uid do dono; ninguém altera a foto de outra pessoa.
+    match /photos/{photoId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.owner == request.auth.uid
+        && photoId.matches(request.auth.uid + '_[a-z0-9]+')
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 1000000;
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.owner == request.auth.uid;
+    }
+
     // Conversa entre um cliente e um prestador (id "cliente_prestador").
     match /conversations/{convId} {
       // resource == null permite checar se a conversa já existe antes de criar

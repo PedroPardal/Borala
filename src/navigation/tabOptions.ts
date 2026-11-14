@@ -21,7 +21,7 @@ export function useTabScreenOptions(): BottomTabNavigationOptions {
       paddingBottom: insets.bottom + 6,
       borderTopWidth: 2,
       borderTopColor: colors.border,
-      backgroundColor: colors.white,
+      backgroundColor: colors.card,
     },
   };
 }
