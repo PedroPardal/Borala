@@ -150,6 +150,18 @@ function Dashboard({ me }: { me: Provider }) {
           <StatCard label="Avaliação" value={me.reviewsCount ? me.rating.toFixed(1) : '—'} icon="star" color={colors.star} />
         </FadeInView>
 
+        {!me.acceptsOnlinePayment && (
+          <FadeInView delay={130}>
+            <PressableScale style={styles.setup} onPress={() => navigation.getParent()?.navigate('PayoutAccount')}>
+              <Text style={styles.setupTitle}>Receba por Pix e cartão</Text>
+              <Text style={styles.setupText}>
+                A maioria dos clientes prefere pagar pelo app. Abra sua conta de recebimento em 2 minutos.
+              </Text>
+              <Text style={styles.setupLink}>Ativar agora →</Text>
+            </PressableScale>
+          </FadeInView>
+        )}
+
         {(debt > 0 || me.blockedForDebt) && (
           <FadeInView delay={140}>
             <Card style={[styles.debt, me.blockedForDebt && styles.debtBlocked]}>

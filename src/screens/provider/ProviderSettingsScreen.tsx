@@ -234,6 +234,19 @@ function ProviderSettings({ me }: { me: Provider }) {
           <PortfolioEditor items={me.portfolio} upload={uploadImage} onChange={(portfolio) => updateLoggedProvider({ portfolio })} />
         </FadeInView>
 
+        <FadeInView delay={250}>
+          <Text style={styles.h}>Pagamentos</Text>
+          <Card>
+            <SettingsRow
+              icon="wallet"
+              label="Receber por Pix e cartão"
+              value={me.acceptsOnlinePayment ? 'Ativo' : 'Ativar'}
+              color={me.acceptsOnlinePayment ? colors.text : colors.primary}
+              onPress={() => navigation.navigate('PayoutAccount')}
+            />
+          </Card>
+        </FadeInView>
+
         <FadeInView delay={260}>
           <Text style={styles.h}>Preferências</Text>
           <Card>

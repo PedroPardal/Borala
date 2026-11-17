@@ -34,16 +34,15 @@ service cloud.firestore {
         && request.resource.data.rating == 0
         && request.resource.data.reviewsCount == 0
         && request.resource.data.completedJobs == 0
-        && !('blockedForDebt' in request.resource.data);
+        && !('blockedForDebt' in request.resource.data)
+        && !('acceptsOnlinePayment' in request.resource.data);
 
-      // O dono edita o próprio perfil, menos a nota e o bloqueio por débito (só a Cloud Function grava).
-      // Serviços concluídos só sobem de 1 em 1.
+      // O dono edita o próprio perfil, menos a nota e os campos que só a Cloud Function grava
+      // (serviços concluídos, bloqueio por débito e se recebe pagamentos no app).
       // Outro usuário só mexe na nota, e só junto com uma avaliação nova dele para este prestador.
       allow update: if (
           isUser(providerId)
-          && !changed().hasAny(['rating', 'reviewsCount', 'lastReviewId', 'blockedForDebt'])
-          && (!changed().hasAny(['completedJobs'])
-              || request.resource.data.completedJobs == resource.data.completedJobs + 1)
+          && !changed().hasAny(['rating', 'reviewsCount', 'lastReviewId', 'blockedForDebt', 'acceptsOnlinePayment', 'completedJobs'])
         ) || (
           signedIn() && !isUser(providerId)
           && changed().hasOnly(['rating', 'reviewsCount', 'lastReviewId'])
@@ -90,26 +89,55 @@ service cloud.firestore {
         && request.resource.data.platformFee >= 5
         && request.resource.data.platformFee >= request.resource.data.servicePrice * 0.08 - 0.01
         && request.resource.data.price >= request.resource.data.servicePrice + request.resource.data.platformFee - 0.01
-        && !('payout' in request.resource.data)
+        && request.resource.data.payment in ['pix', 'cartao', 'dinheiro']
+        && !request.resource.data.keys().hasAny(['payout', 'paymentStatus', 'disputed', 'concludedBy', 'cancelledBy'])
+        // Pix e cartão só com prestador que tem conta de recebimento no Asaas
+        && (request.resource.data.payment == 'dinheiro'
+            || get(docAt('providers', request.resource.data.providerId)).data.get('acceptsOnlinePayment', false) == true)
         // com comissões acima do limite, o prestador só recebe pedidos pagos no app (que quitam o débito)
         && (request.resource.data.payment != 'dinheiro'
             || get(docAt('providers', request.resource.data.providerId)).data.get('blockedForDebt', false) != true)
         && text(request.resource.data.address, 300);
 
-      // Cliente: atualiza a cópia do próprio nome/foto e marca como avaliado (junto com a avaliação).
+      // Cliente: atualiza a cópia do próprio nome/foto, marca como avaliado (junto com a avaliação),
+      // cancela enquanto pendente, confirma que o serviço foi feito ou reporta um problema.
       // Prestador: atualiza a cópia do nome/foto e o status, seguindo pendente → aceito/recusado → concluído.
+      // Pedido por Pix ou cartão só pode ser aceito depois de pago. Pagamento e repasse: só a Cloud Function.
       allow update: if signedIn() && (
         (isClient()
-          && changed().hasOnly(['clientName', 'clientAvatar', 'reviewed'])
+          && changed().hasOnly(['clientName', 'clientAvatar', 'reviewed', 'status', 'disputed'])
           && (!changed().hasAny(['reviewed'])
-              || (request.resource.data.reviewed == true && existsAfter(docAt('reviews', bookingId)))))
+              || (request.resource.data.reviewed == true && existsAfter(docAt('reviews', bookingId))))
+          && (!changed().hasAny(['status'])
+              || (resource.data.status == 'pendente' && request.resource.data.status == 'cancelado')
+              || (resource.data.status == 'aceito' && request.resource.data.status == 'concluido'
+                  && resource.data.get('disputed', false) != true))
+          && (!changed().hasAny(['disputed'])
+              || (request.resource.data.disputed == true && resource.data.status == 'aceito')))
         || (isProvider()
           && changed().hasOnly(['status', 'providerName', 'providerAvatar'])
           && (!changed().hasAny(['status'])
-              || (resource.data.status == 'pendente' && request.resource.data.status in ['aceito', 'recusado'])
-              || (resource.data.status == 'aceito' && request.resource.data.status == 'concluido')))
+              || (resource.data.status == 'pendente' && request.resource.data.status == 'recusado')
+              || (resource.data.status == 'pendente' && request.resource.data.status == 'aceito'
+                  && (resource.data.payment == 'dinheiro' || resource.data.get('paymentStatus', '') == 'pago'))
+              || (resource.data.status == 'aceito' && request.resource.data.status == 'concluido'
+                  && resource.data.get('disputed', false) != true)))
       );
       allow delete: if false;
+    }
+
+    // Cobrança do Asaas de um pedido (QR Code Pix, link do cartão). Só a Cloud Function grava.
+    match /payments/{bookingId} {
+      allow read: if signedIn() && resource.data.clientId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Dados internos do Asaas (cliente e subconta do prestador): só o servidor acessa.
+    match /asaasCustomers/{uid} {
+      allow read, write: if false;
+    }
+    match /providerAccounts/{uid} {
+      allow read, write: if false;
     }
 
     // Saldo do prestador (comissões de serviços pagos em dinheiro). Só a Cloud Function grava.

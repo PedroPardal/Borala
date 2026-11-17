@@ -12,7 +12,6 @@ import {
   collection,
   doc,
   getDoc,
-  increment,
   onSnapshot,
   query,
   runTransaction,
@@ -47,7 +46,7 @@ interface Session {
   email: string;
 }
 
-type ProfilePatch = Partial<Pick<UserProfile, 'name' | 'phone' | 'avatar' | 'addresses'>>;
+type ProfilePatch = Partial<Pick<UserProfile, 'name' | 'phone' | 'avatar' | 'addresses' | 'cpf'>>;
 
 export interface NewBooking {
   provider: Provider;
@@ -93,6 +92,8 @@ interface AppContextValue {
   bookings: Booking[];
   createBooking: (b: NewBooking) => Promise<string>;
   setBookingStatus: (b: Booking, status: BookingStatus) => Promise<void>;
+  /** cliente reporta um problema: o pedido não é concluído automaticamente e o repasse fica parado */
+  reportProblem: (b: Booking) => Promise<void>;
 
   addReview: (b: Booking, rating: number, comment: string) => Promise<void>;
 
@@ -430,7 +431,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!uid) return;
       requireOnline();
       // campos calculados ou controlados pelas avaliações nunca são gravados pelo dono
-      const { id: _id, distanceKm: _d, rating: _r, reviewsCount: _c, blockedForDebt: _b, ...data } = patch;
+      const {
+        id: _id,
+        distanceKm: _d,
+        rating: _r,
+        reviewsCount: _c,
+        completedJobs: _j,
+        blockedForDebt: _b,
+        acceptsOnlinePayment: _o,
+        ...data
+      } = patch;
       await updateDoc(doc(fb.db, 'providers', uid), data);
     },
     [uid],
@@ -485,12 +495,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       requireOnline();
       const batch = writeBatch(fb.db);
       batch.update(doc(fb.db, 'bookings', b.id), { status });
-      if (status === 'recusado') batch.delete(doc(fb.db, 'busySlots', `${b.providerId}_${b.date}_${b.time}`));
-      if (status === 'concluido') batch.update(doc(fb.db, 'providers', b.providerId), { completedJobs: increment(1) });
+      // recusado ou cancelado libera o horário; o estorno do Pix/cartão e o contador de serviços
+      // concluídos ficam com a Cloud Function onBookingUpdated
+      if (status === 'recusado' || status === 'cancelado') {
+        batch.delete(doc(fb.db, 'busySlots', `${b.providerId}_${b.date}_${b.time}`));
+      }
       await batch.commit();
     },
     [],
   );
+
+  const reportProblem = useCallback(async (b: Booking) => {
+    requireOnline();
+    await updateDoc(doc(fb.db, 'bookings', b.id), { disputed: true });
+  }, []);
 
   const addReview = useCallback(
     async (b: Booking, rating: number, comment: string) => {
@@ -576,6 +594,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       bookings,
       createBooking,
       setBookingStatus,
+      reportProblem,
       addReview,
       conversations,
       getOrCreateConversation,
@@ -606,6 +625,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       bookings,
       createBooking,
       setBookingStatus,
+      reportProblem,
       addReview,
       conversations,
       getOrCreateConversation,

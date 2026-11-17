@@ -65,25 +65,50 @@ O app usa o SDK JavaScript do Firebase, que funciona no Expo Go (não precisa ge
 | `busySlots/{prestador_data_hora}` | horários ocupados (o id único impede duas reservas no mesmo horário) | qualquer usuário logado |
 | `reviews/{bookingId}` | uma avaliação por pedido concluído | qualquer usuário logado |
 | `conversations/{cliente_prestador}/messages` | chat em tempo real | só os dois participantes |
+| `payments/{pedido}` | cobrança do Asaas (QR Code Pix, link do cartão) | o cliente do pedido; só o servidor grava |
+| `providerBalances/{uid}` | comissões de serviços em dinheiro a descontar | o próprio prestador; só o servidor grava |
+| `providerAccounts/{uid}`, `asaasCustomers/{uid}` | ids internos do Asaas | só o servidor |
 | Storage `users/{uid}/` | foto de perfil e fotos de antes/depois | qualquer usuário logado |
 
 Um prestador só aparece nas buscas quando está **online**, tem **pelo menos uma especialidade e um serviço** e, se as duas localizações forem conhecidas, quando o cliente está dentro do **raio de atendimento**. O Painel do prestador mostra o que falta.
 
-### Cloud Functions (comissões em dinheiro)
+### 💳 Pagamentos (Asaas + Cloud Functions)
 
-Quando um serviço pago em **dinheiro** é concluído, a comissão da plataforma (8%, mínimo de R$ 5) vira débito no saldo do prestador (`providerBalances/{uid}`). O débito é descontado automaticamente do próximo serviço pago por **Pix ou cartão**: o repasse gravado em `bookings/{id}.payout` já vem com o desconto. Com débito acima de R$ 50, o prestador continua nas buscas, mas só recebe pedidos pagos no app até o saldo baixar. Quem faz essas contas é a função `onBookingCompleted` em `functions/`; as regras impedem que o app altere o saldo ou o bloqueio.
+O app cobra por **Pix** e **cartão** pelo [Asaas](https://www.asaas.com). As chamadas ao Asaas ficam nas Cloud Functions (`functions/`); a chave de API nunca vai para o app.
 
+**Como o dinheiro anda**
+1. O prestador abre a **conta de recebimento** em Perfil → Pagamentos (cria uma subconta Asaas no nome dele). Sem ela, ele só recebe em dinheiro.
+2. O cliente agenda por Pix ou cartão e paga na tela de pagamento (QR Code / copia e cola, ou a página segura do Asaas para cartão). Sem pagamento em 30 minutos, o pedido é cancelado e o horário liberado.
+3. O webhook do Asaas confirma o pagamento; só então o prestador pode aceitar. Se ele recusar, ou o cliente cancelar, o valor é estornado.
+4. O serviço é concluído pelo prestador, pelo cliente ("Serviço feito") ou automaticamente 3 dias depois da data, se o cliente não reportar problema. Aí o valor do serviço é transferido para a subconta do prestador; a comissão (8%, mínimo de R$ 5) fica na conta principal da BoraLá.
+5. **Serviços em dinheiro:** a comissão vira débito do prestador e é descontada do próximo repasse por Pix ou cartão. Acima de R$ 50 de débito, ele só recebe pedidos pagos no app até o saldo baixar.
+
+Repasses que falharem (por exemplo, dinheiro de cartão ainda não liberado pelo Asaas) são tentados de novo a cada 6 horas. Pedidos com problema reportado ficam parados para análise manual no Console do Firebase.
+
+**Configurar**
+1. Crie a conta no Asaas (use o **sandbox** para testar) e gere a chave de API em Integrações.
+2. Cadastre os segredos e publique:
+   ```bash
+   npx firebase-tools functions:secrets:set ASAAS_API_KEY --project SEU_PROJECT_ID
+   npx firebase-tools functions:secrets:set ASAAS_WEBHOOK_TOKEN --project SEU_PROJECT_ID   # invente um token longo
+   npx firebase-tools deploy --only functions,firestore --project SEU_PROJECT_ID
+   ```
+   O deploy pergunta o valor de `ASAAS_ENV`: `sandbox` para testes, `production` para valer.
+3. No Asaas, em Integrações → Webhooks, cadastre a URL da função `asaasWebhook` (aparece no fim do deploy, algo como `https://southamerica-east1-SEU_PROJECT_ID.cloudfunctions.net/asaasWebhook`), com o mesmo token do `ASAAS_WEBHOOK_TOKEN`, e ative os eventos de cobrança.
+
+> Publique as regras, as funções e a nova versão do app juntas: as regras novas exigem campos que só a versão nova do app envia.
+
+**Testes**
 ```bash
-cd functions && npm install && npm test      # testes das regras do saldo
-npx firebase-tools deploy --only functions,firestore --project SEU_PROJECT_ID
+cd functions
+npm test           # regras do saldo do prestador
+npm run test:e2e   # regras + funções no emulador do Firebase, com um Asaas falso (precisa de Java)
 ```
-
-A transferência real do repasse para o prestador vem com a integração do Asaas (o `payout` fica como `pendente` até lá).
 
 ### Testando
 Crie duas contas pelo app (uma como **Quero trabalhar**, outra como **Quero contratar**). Dá para usar dois celulares, ou sair de uma conta e entrar na outra. No prestador, complete o perfil (especialidade, um serviço e a localização). No cliente, ele vai aparecer em **Explorar**: agende, converse pelo chat, aceite e conclua pelo prestador e avalie pelo cliente.
 
-> O pagamento ainda é combinado direto com o prestador. A taxa exibida no checkout é só informativa: 8% do serviço com mínimo de R$ 5, e o cartão tem um acréscimo que cobre a tarifa do gateway (o Pix não tem).
+> A taxa da plataforma é 8% do serviço com mínimo de R$ 5. O cartão tem um acréscimo que cobre a tarifa do Asaas; o Pix não tem.
 
 ## 📂 Estrutura
 
@@ -142,6 +167,5 @@ Os sons podem ser desligados em **Perfil → Efeitos sonoros**. Para trocar por 
 
 ## 🔜 Próximos passos sugeridos
 - Notificações push (expo-notifications + Cloud Functions) para novos pedidos e mensagens
-- Gateway de pagamento (Pix via Mercado Pago, Stripe etc.)
 - Mapa (`react-native-maps`) para ver os prestadores e o raio de atendimento
 - Login com Google/Apple (exige um development build, não roda no Expo Go)

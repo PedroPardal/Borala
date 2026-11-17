@@ -79,6 +79,8 @@ export interface Provider {
   online: boolean;
   /** gravado só pela Cloud Function: com comissões acima do limite, o prestador não aceita pedidos em dinheiro */
   blockedForDebt?: boolean;
+  /** gravado só pela Cloud Function: o prestador tem conta no Asaas e recebe por Pix e cartão */
+  acceptsOnlinePayment?: boolean;
   location?: GeoPoint | null;
   area?: string; // "Bairro, Cidade"
   createdAt: number;
@@ -93,6 +95,8 @@ export interface UserProfile {
   name: string;
   email: string;
   phone?: string;
+  /** exigido pelo Asaas para cobrar por Pix ou cartão */
+  cpf?: string;
   avatar: string;
   addresses: Address[];
   createdAt: number;
@@ -100,7 +104,10 @@ export interface UserProfile {
 
 export type PaymentMethod = 'pix' | 'cartao' | 'dinheiro';
 
-export type BookingStatus = 'pendente' | 'aceito' | 'recusado' | 'concluido';
+export type BookingStatus = 'pendente' | 'aceito' | 'recusado' | 'concluido' | 'cancelado';
+
+/** Pagamento por Pix ou cartão no Asaas (gravado só pela Cloud Function). */
+export type PaymentStatus = 'aguardando' | 'pago' | 'estornado' | 'cancelado';
 
 /** bookings/{id}: guarda cópia de nome/foto das duas partes para as listas */
 export interface Booking {
@@ -125,7 +132,12 @@ export interface Booking {
   platformFee?: number;
   /** preenchido pela Cloud Function quando um pedido pago no app é concluído */
   payout?: BookingPayout;
+  paymentStatus?: PaymentStatus;
   status: BookingStatus;
+  /** o cliente reportou um problema: não é concluído automaticamente e o repasse fica parado */
+  disputed?: boolean;
+  concludedBy?: 'automatico';
+  cancelledBy?: 'sem_pagamento';
   reviewed: boolean;
   notes?: string;
   createdAt: number;
@@ -137,8 +149,33 @@ export interface BookingPayout {
   amount: number;
   /** comissões de serviços em dinheiro descontadas deste repasse */
   debtDeducted: number;
-  status: 'pendente' | 'pago';
+  status: 'pendente' | 'processando' | 'pago' | 'erro';
   createdAt: number;
+}
+
+/** O que a Cloud Function createPayment devolve para mostrar a cobrança. */
+export interface PaymentView {
+  billingType: 'PIX' | 'CREDIT_CARD';
+  value: number;
+  invoiceUrl: string;
+  pixPayload?: string;
+  /** PNG em base64 */
+  pixImage?: string;
+  pixExpiresAt?: string;
+}
+
+/** Dados que o Asaas pede para abrir a conta de recebimento do prestador. */
+export interface PayoutAccountForm {
+  cpfCnpj: string;
+  birthDate?: string; // yyyy-mm-dd (pessoa física)
+  companyType?: 'MEI' | 'LIMITED' | 'INDIVIDUAL' | 'ASSOCIATION'; // pessoa jurídica
+  mobilePhone: string;
+  incomeValue: number;
+  postalCode: string;
+  address: string;
+  addressNumber: string;
+  complement?: string;
+  province: string;
 }
 
 /** providerBalances/{providerId}: só a Cloud Function grava; o prestador lê o próprio */

@@ -3,6 +3,7 @@ import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
 import { Auth, getAuth, getReactNativePersistence, initializeAuth } from 'firebase/auth';
 import { Firestore, initializeFirestore } from 'firebase/firestore';
 import { FirebaseStorage, getStorage } from 'firebase/storage';
+import { Functions, getFunctions } from 'firebase/functions';
 
 // Preenchido pelo .env (veja .env.example). O Expo só embute variáveis com prefixo EXPO_PUBLIC_.
 const config = {
@@ -20,6 +21,7 @@ let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
 let storage: FirebaseStorage | undefined;
+let functions: Functions | undefined;
 
 if (isFirebaseConfigured) {
   const isFirstInit = getApps().length === 0;
@@ -29,6 +31,8 @@ if (isFirebaseConfigured) {
   // long polling evita travamentos do canal de streaming do Firestore no React Native
   db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true, ignoreUndefinedProperties: true });
   storage = getStorage(app);
+  // mesma região das Cloud Functions (functions/src/admin.ts)
+  functions = getFunctions(app, 'southamerica-east1');
 }
 
 /** Só chamar depois de checar `isFirebaseConfigured` (o app mostra a tela de configuração antes). */
@@ -44,6 +48,10 @@ export const fb = {
   get storage() {
     if (!storage) throw new Error('Firebase não configurado');
     return storage;
+  },
+  get functions() {
+    if (!functions) throw new Error('Firebase não configurado');
+    return functions;
   },
 };
 
@@ -68,5 +76,8 @@ export function firebaseErrorMessage(e: unknown): string {
     'storage/unauthorized': 'Sem permissão para enviar a foto.',
     'storage/retry-limit-exceeded': 'A conexão caiu durante o envio da foto.',
   };
-  return map[code] ?? 'Algo deu errado. Tente de novo.';
+  if (map[code]) return map[code];
+  // erros das Cloud Functions (functions/...) já vêm com a mensagem em português
+  if (code.startsWith('functions/') && e instanceof Error && e.message && code !== 'functions/internal') return e.message;
+  return 'Algo deu errado. Tente de novo.';
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,11 +42,20 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
   const { date, time } = route.params;
   const addresses = profile?.addresses ?? [];
 
-  const [payment, setPayment] = useState<PaymentMethod>('pix');
-  // prestador com comissões acima do limite não aceita dinheiro (as regras recusariam o pedido)
+  // Pix e cartão só com prestador que tem conta de recebimento; dinheiro some quando ele passou do
+  // limite de comissões (as regras do Firestore recusariam o pedido nos dois casos)
+  const methods = useMemo(
+    () => METHODS.filter((m) => (m.id === 'dinheiro' ? !provider.blockedForDebt : !!provider.acceptsOnlinePayment)),
+    [provider.blockedForDebt, provider.acceptsOnlinePayment],
+  );
+  const [payment, setPayment] = useState<PaymentMethod>(methods[0]?.id ?? 'pix');
   useEffect(() => {
-    if (provider.blockedForDebt && payment === 'dinheiro') setPayment('pix');
-  }, [provider.blockedForDebt, payment]);
+    if (methods.length > 0 && !methods.some((m) => m.id === payment)) setPayment(methods[0].id);
+  }, [methods, payment]);
+  const online = payment !== 'dinheiro';
+  const [cpf, setCpf] = useState(profile?.cpf ?? '');
+  const cpfDigits = cpf.replace(/\D/g, '');
+  const cpfOk = !online || cpfDigits.length === 11 || cpfDigits.length === 14;
   const [addressId, setAddressId] = useState(addresses[0]?.id);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -57,10 +66,14 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
   const pixSavings = priceFor(service.price, 'cartao').total - priceFor(service.price, 'pix').total;
   const address = addresses.find((a) => a.id === addressId) ?? addresses[0];
 
+  const canConfirm = !!address && methods.length > 0 && cpfOk;
+
   const confirm = async () => {
-    if (!address) return feedback.error();
+    if (!canConfirm) return feedback.error();
     setLoading(true);
     try {
+      // o Asaas exige CPF/CNPJ de quem paga; fica salvo no perfil privado
+      if (online && cpfDigits !== profile?.cpf) await updateProfile({ cpf: cpfDigits });
       const bookingId = await createBooking({
         provider,
         service,
@@ -72,10 +85,13 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
         platformFee: price.fee,
         notes: notes.trim() || undefined,
       });
-      // substitui a pilha de agendamento pela tela de sucesso
+      // substitui a pilha de agendamento pela tela de pagamento (Pix/cartão) ou de sucesso (dinheiro)
       navigation.reset({
         index: 1,
-        routes: [{ name: 'ClientTabs', params: { screen: 'Orders' } }, { name: 'BookingSuccess', params: { bookingId, payment } }],
+        routes: [
+          { name: 'ClientTabs', params: { screen: 'Orders' } },
+          online ? { name: 'Payment', params: { bookingId } } : { name: 'BookingSuccess', params: { bookingId, payment } },
+        ],
       });
     } catch (e) {
       setLoading(false);
@@ -141,7 +157,7 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
         <FadeInView delay={120}>
           <Text style={styles.h}>Pagamento</Text>
           <View style={styles.methods}>
-            {METHODS.filter((m) => m.id !== 'dinheiro' || !provider.blockedForDebt).map((m) => {
+            {methods.map((m) => {
               const active = m.id === payment;
               return (
                 <PressableScale
@@ -164,6 +180,26 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
               );
             })}
           </View>
+          {methods.length === 0 && (
+            <Text style={styles.muted}>Este prestador não está recebendo pedidos no momento. Tente outro prestador.</Text>
+          )}
+          {!provider.acceptsOnlinePayment && methods.length > 0 && (
+            <Text style={[styles.muted, { marginTop: spacing.sm }]}>Este prestador ainda não recebe por Pix ou cartão.</Text>
+          )}
+          {online && (
+            <View style={{ marginTop: spacing.md }}>
+              <Text style={[styles.muted, { marginBottom: 6 }]}>CPF ou CNPJ de quem paga (exigido para Pix e cartão)</Text>
+              <TextInput
+                value={cpf}
+                onChangeText={(v) => setCpf(v.replace(/[^\d./-]/g, ''))}
+                placeholder="000.000.000-00"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="number-pad"
+                maxLength={18}
+                style={[styles.cpf, !cpfOk && cpf.length > 0 && { borderColor: colors.danger }]}
+              />
+            </View>
+          )}
           {payment === 'cartao' && pixSavings > 0 && (
             <PressableScale sound="select" onPress={() => setPayment('pix')} style={styles.pixTip}>
               <Ionicons name="flash" size={18} color={PIX_COLOR} />
@@ -199,9 +235,9 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 12 }]}>
         <DuoButton
-          title={address ? `Confirmar • ${formatBRL(total)}` : 'Adicione um endereço'}
+          title={!address ? 'Adicione um endereço' : !cpfOk ? 'Informe o CPF' : online ? `Ir para o pagamento • ${formatBRL(total)}` : `Confirmar • ${formatBRL(total)}`}
           icon="checkmark-circle"
-          disabled={!address}
+          disabled={!canConfirm}
           loading={loading}
           onPress={confirm}
           sound="none"
@@ -275,6 +311,17 @@ const styles = StyleSheet.create({
   pixTipText: { flex: 1, fontSize: 13, fontWeight: '700', color: colors.text },
   pixTipLink: { color: PIX_COLOR, fontWeight: '900' },
   methodIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  cpf: {
+    backgroundColor: colors.white,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
   notes: {
     minHeight: 90,
     backgroundColor: colors.white,

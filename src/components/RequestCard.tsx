@@ -13,7 +13,15 @@ const STATUS: Record<BookingStatus, { label: string; color: string }> = {
   aceito: { label: 'Agendado', color: colors.blue },
   recusado: { label: 'Recusado', color: colors.danger },
   concluido: { label: 'Concluído', color: colors.success },
+  cancelado: { label: 'Cancelado', color: colors.textMuted },
 };
+
+const PAYMENT_STATUS = {
+  aguardando: 'Aguardando pagamento',
+  pago: 'Pagamento confirmado',
+  estornado: 'Pagamento devolvido',
+  cancelado: 'Cobrança cancelada',
+} as const;
 
 const PAYMENT = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' } as const;
 
@@ -70,11 +78,21 @@ export default function RequestCard({ booking, title, avatar, onAccept, onDeclin
         <Meta icon="calendar" text={`${formatDateLong(booking.date)} • ${booking.time}`} />
         <Meta icon="location" text={booking.address} />
         <Meta icon="wallet" text={`${PAYMENT[booking.payment]} • ${formatBRL(booking.price)}`} />
+        {booking.payment !== 'dinheiro' && (
+          <Meta
+            icon={booking.paymentStatus === 'pago' ? 'checkmark-circle' : 'time'}
+            text={booking.paymentStatus ? PAYMENT_STATUS[booking.paymentStatus] : 'Aguardando pagamento'}
+          />
+        )}
+        {booking.disputed && <Meta icon="alert-circle" text="Problema reportado pelo cliente: em análise" />}
         {forProvider && <ProviderMoney booking={booking} />}
         {booking.notes ? <Meta icon="chatbubble-ellipses" text={`"${booking.notes}"`} /> : null}
       </View>
 
-      {booking.status === 'pendente' && onAccept && onDecline && (
+      {booking.status === 'pendente' && onAccept && onDecline && booking.payment !== 'dinheiro' && booking.paymentStatus !== 'pago' && (
+        <Text style={styles.waiting}>Você poderá aceitar quando o cliente pagar. Sem pagamento em 30 minutos, o pedido é cancelado.</Text>
+      )}
+      {booking.status === 'pendente' && onAccept && onDecline && (booking.payment === 'dinheiro' || booking.paymentStatus === 'pago') && (
         <View style={styles.actions}>
           <DuoButton title="Recusar" variant="outline" small style={{ flex: 1 }} onPress={() => leave(onDecline, -1)} sound="none" />
           <View style={{ width: spacing.md }} />
@@ -98,11 +116,12 @@ function ProviderMoney({ booking }: { booking: Booking }) {
     );
   }
   if (booking.payout) {
-    const { amount, debtDeducted } = booking.payout;
+    const { amount, debtDeducted, status } = booking.payout;
+    const when = status === 'pago' ? 'Transferido' : 'A transferir';
     return (
       <Meta
         icon="cash"
-        text={`Você recebe ${formatBRL(amount)}${debtDeducted > 0 ? ` (${formatBRL(debtDeducted)} de comissões em dinheiro descontados)` : ''}`}
+        text={`${when}: ${formatBRL(amount)}${debtDeducted > 0 ? ` (${formatBRL(debtDeducted)} de comissões em dinheiro descontados)` : ''}`}
       />
     );
   }
@@ -121,6 +140,7 @@ function Meta({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: stri
 }
 
 const styles = StyleSheet.create({
+  waiting: { marginTop: spacing.md, fontSize: 13, fontWeight: '700', color: colors.textMuted },
   card: { ...cardStyle, marginBottom: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center' },
   title: { fontSize: 16, fontWeight: '800', color: colors.text },

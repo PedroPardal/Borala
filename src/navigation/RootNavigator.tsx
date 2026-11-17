@@ -17,6 +17,8 @@ import ProviderDetailsScreen from '../screens/client/ProviderDetailsScreen';
 import ScheduleScreen from '../screens/client/ScheduleScreen';
 import CheckoutScreen from '../screens/client/CheckoutScreen';
 import BookingSuccessScreen from '../screens/client/BookingSuccessScreen';
+import PaymentScreen from '../screens/client/PaymentScreen';
+import PayoutAccountScreen from '../screens/provider/PayoutAccountScreen';
 import ReviewScreen from '../screens/client/ReviewScreen';
 import ChatScreen from '../screens/shared/ChatScreen';
 import EditProfileScreen from '../screens/shared/EditProfileScreen';
@@ -75,6 +77,7 @@ export default function RootNavigator() {
             <Stack.Screen name="ProviderDetails" component={ProviderDetailsScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Schedule" component={ScheduleScreen} options={{ title: 'Agendar' }} />
             <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ title: 'Resumo do pedido', animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="Payment" component={PaymentScreen} options={{ title: 'Pagamento', gestureEnabled: false }} />
             <Stack.Screen
               name="BookingSuccess"
               component={BookingSuccessScreen}
@@ -91,6 +94,11 @@ export default function RootNavigator() {
         ) : (
           <>
             <Stack.Screen name="ProviderTabs" component={ProviderTabs} options={{ headerShown: false, animation: 'fade' }} />
+            <Stack.Screen
+              name="PayoutAccount"
+              component={PayoutAccountScreen}
+              options={{ title: 'Receber por Pix e cartão', animation: 'slide_from_bottom' }}
+            />
             <Stack.Screen name="Chat" component={ChatScreen} />
             <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Editar perfil', animation: 'slide_from_bottom' }} />
           </>

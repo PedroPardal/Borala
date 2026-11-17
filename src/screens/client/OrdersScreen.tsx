@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -12,16 +12,17 @@ import { Booking } from '../../types';
 import { RootStackParamList } from '../../navigation/types';
 import { colors, radius, spacing } from '../../theme';
 import { feedback } from '../../services/feedback';
+import { firebaseErrorMessage } from '../../services/firebase';
 
 type Tab = 'upcoming' | 'history';
 
 export default function OrdersScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { bookings, getOrCreateConversation } = useApp();
+  const { bookings, getOrCreateConversation, setBookingStatus, reportProblem } = useApp();
   const [tab, setTab] = useState<Tab>('upcoming');
 
   const list = bookings
-    .filter((b) => (tab === 'upcoming' ? b.status === 'pendente' || b.status === 'aceito' : b.status === 'concluido' || b.status === 'recusado'))
+    .filter((b) => (tab === 'upcoming' ? b.status === 'pendente' || b.status === 'aceito' : !['pendente', 'aceito'].includes(b.status)))
     .sort((a, b) => (tab === 'upcoming' ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)));
 
   const openChat = async (b: Booking) => {
@@ -32,6 +33,38 @@ export default function OrdersScreen() {
       feedback.error();
     }
   };
+
+  const run = (p: Promise<void>) =>
+    p.then(() => feedback.success()).catch((e) => {
+      feedback.error();
+      Alert.alert('Não foi possível atualizar', firebaseErrorMessage(e));
+    });
+
+  const cancel = (b: Booking) =>
+    Alert.alert(
+      'Cancelar pedido?',
+      b.paymentStatus === 'pago' ? 'O valor pago é devolvido para você.' : 'O horário fica livre para outra pessoa.',
+      [
+        { text: 'Voltar', style: 'cancel' },
+        { text: 'Cancelar pedido', style: 'destructive', onPress: () => run(setBookingStatus(b, 'cancelado')) },
+      ],
+    );
+
+  const confirmDone = (b: Booking) =>
+    Alert.alert('O serviço foi feito?', 'Ao confirmar, o pagamento é liberado para o prestador.', [
+      { text: 'Ainda não', style: 'cancel' },
+      { text: 'Sim, foi feito', onPress: () => run(setBookingStatus(b, 'concluido')) },
+    ]);
+
+  const report = (b: Booking) =>
+    Alert.alert(
+      'Reportar problema',
+      'O pedido fica em análise e o pagamento ao prestador é segurado até resolvermos. Conte o que aconteceu pelo chat com o prestador.',
+      [
+        { text: 'Voltar', style: 'cancel' },
+        { text: 'Reportar', style: 'destructive', onPress: () => run(reportProblem(b)) },
+      ],
+    );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -67,6 +100,8 @@ export default function OrdersScreen() {
         }
         renderItem={({ item, index }) => {
           const canReview = item.status === 'concluido' && !item.reviewed;
+          const needsPayment = item.status === 'pendente' && item.payment !== 'dinheiro' && item.paymentStatus !== 'pago';
+          const isAccepted = item.status === 'aceito' && !item.disputed;
           return (
             <FadeInView delay={index * 70}>
               <RequestCard
@@ -74,6 +109,35 @@ export default function OrdersScreen() {
                 title={item.providerName}
                 avatar={item.providerAvatar}
                 footer={
+                  <>
+                  {(needsPayment || item.status === 'pendente' || isAccepted) && (
+                    <View style={styles.actions}>
+                      {needsPayment && (
+                        <DuoButton
+                          small
+                          icon="flash"
+                          title="Pagar agora"
+                          style={{ flex: 1, marginRight: spacing.md }}
+                          onPress={() => navigation.navigate('Payment', { bookingId: item.id })}
+                        />
+                      )}
+                      {item.status === 'pendente' && (
+                        <DuoButton small variant="outline" icon="close" title="Cancelar" style={{ flex: 1 }} onPress={() => cancel(item)} />
+                      )}
+                      {isAccepted && (
+                        <>
+                          <DuoButton
+                            small
+                            icon="checkmark-done"
+                            title="Serviço feito"
+                            style={{ flex: 1, marginRight: spacing.md }}
+                            onPress={() => confirmDone(item)}
+                          />
+                          <DuoButton small variant="outline" icon="alert-circle" title="Problema" style={{ flex: 1 }} onPress={() => report(item)} />
+                        </>
+                      )}
+                    </View>
+                  )}
                   <View style={styles.actions}>
                     <DuoButton
                       small
@@ -97,6 +161,7 @@ export default function OrdersScreen() {
                       </>
                     )}
                   </View>
+                  </>
                 }
               />
             </FadeInView>
