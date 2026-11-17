@@ -15,6 +15,8 @@ import EmptyState from '../../components/EmptyState';
 import OfflineBanner from '../../components/OfflineBanner';
 import AdBanner from '../../components/AdBanner';
 import { useApp } from '../../context/AppContext';
+import { useProviderBalance } from '../../context/hooks';
+import { DEBT_LIMIT } from '../../utils/pricing';
 import { ProviderTabParamList } from '../../navigation/types';
 import { Provider } from '../../types';
 import { colors, radius, spacing } from '../../theme';
@@ -54,16 +56,17 @@ function Dashboard({ me }: { me: Provider }) {
   const checklist = profileChecklist(me);
   const missing = checklist.filter((c) => !c.done);
   const hidden = checklist.some((c) => c.required && !c.done);
+  const { debt, entries } = useProviderBalance(me.id);
 
   const mine = bookings;
   const pending = mine.filter((b) => b.status === 'pendente');
   const upcoming = mine.filter((b) => b.status === 'aceito').sort((a, b) => a.date.localeCompare(b.date));
   const completed = mine.filter((b) => b.status === 'concluido');
 
-  // ganhos por dia a partir dos serviços concluídos
+  // ganhos por dia a partir dos serviços concluídos (só o valor do serviço, sem a taxa da plataforma)
   const daily = useMemo(() => {
     const map = new Map<string, number>();
-    completed.forEach((b) => map.set(b.date, (map.get(b.date) ?? 0) + b.price));
+    completed.forEach((b) => map.set(b.date, (map.get(b.date) ?? 0) + (b.servicePrice ?? b.price)));
     return map;
   }, [completed]);
 
@@ -147,6 +150,34 @@ function Dashboard({ me }: { me: Provider }) {
           <StatCard label="Avaliação" value={me.reviewsCount ? me.rating.toFixed(1) : '—'} icon="star" color={colors.star} />
         </FadeInView>
 
+        {(debt > 0 || me.blockedForDebt) && (
+          <FadeInView delay={140}>
+            <Card style={[styles.debt, me.blockedForDebt && styles.debtBlocked]}>
+              <View style={styles.debtHead}>
+                <Ionicons name={me.blockedForDebt ? 'alert-circle' : 'receipt'} size={22} color={me.blockedForDebt ? colors.danger : colors.primary} />
+                <Text style={styles.debtTitle}>Comissões a descontar</Text>
+                <Text style={styles.debtValue}>{formatBRL(debt)}</Text>
+              </View>
+              <Text style={styles.debtText}>
+                {me.blockedForDebt
+                  ? `As comissões passaram de ${formatBRL(DEBT_LIMIT)}, então os clientes só podem te contratar por Pix ou cartão. O pagamento em dinheiro volta quando o saldo for descontado de um desses serviços.`
+                  : `É a taxa da plataforma dos serviços pagos em dinheiro. Ela é descontada automaticamente do próximo serviço pago por Pix ou cartão. Acima de ${formatBRL(DEBT_LIMIT)}, você deixa de receber pedidos em dinheiro até o saldo baixar.`}
+              </Text>
+              {entries.slice(0, 3).map((e) => (
+                <View key={e.id} style={styles.debtRow}>
+                  <Text style={styles.debtRowLabel} numberOfLines={1}>
+                    {e.type === 'comissao_dinheiro' ? 'Comissão' : 'Descontado'} • {e.serviceTitle}
+                  </Text>
+                  <Text style={[styles.debtRowValue, { color: e.amount > 0 ? colors.danger : colors.success }]}>
+                    {e.amount > 0 ? '+' : '−'}
+                    {formatBRL(Math.abs(e.amount))}
+                  </Text>
+                </View>
+              ))}
+            </Card>
+          </FadeInView>
+        )}
+
         <AdBanner />
 
         {missing.length > 0 && (
@@ -195,7 +226,7 @@ function Dashboard({ me }: { me: Provider }) {
           {upcoming.length === 0 ? (
             <EmptyState icon="calendar-outline" title="Nada agendado" subtitle="Aceite solicitações para preencher sua agenda." />
           ) : (
-            upcoming.map((b) => <RequestCard key={b.id} booking={b} title={b.clientName} avatar={b.clientAvatar} />)
+            upcoming.map((b) => <RequestCard key={b.id} booking={b} title={b.clientName} avatar={b.clientAvatar} forProvider />)
           )}
         </FadeInView>
 
@@ -222,6 +253,15 @@ function Dashboard({ me }: { me: Provider }) {
 }
 
 const styles = StyleSheet.create({
+  debt: { marginTop: spacing.lg, borderColor: colors.primary },
+  debtBlocked: { borderColor: colors.danger },
+  debtHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  debtTitle: { flex: 1, fontSize: 15, fontWeight: '800', color: colors.text },
+  debtValue: { fontSize: 18, fontWeight: '900', color: colors.text },
+  debtText: { fontSize: 13, fontWeight: '600', color: colors.textMuted, marginTop: spacing.sm, marginBottom: spacing.sm },
+  debtRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
+  debtRowLabel: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.text, marginRight: spacing.sm },
+  debtRowValue: { fontSize: 13, fontWeight: '800' },
   safe: { flex: 1, backgroundColor: colors.bg },
   head: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.lg },
   hello: { fontSize: 22, fontWeight: '900', color: colors.text },

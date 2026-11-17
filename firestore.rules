@@ -33,13 +33,15 @@ service cloud.firestore {
         && getAfter(docAt('users', providerId)).data.role == 'provider'
         && request.resource.data.rating == 0
         && request.resource.data.reviewsCount == 0
-        && request.resource.data.completedJobs == 0;
+        && request.resource.data.completedJobs == 0
+        && !('blockedForDebt' in request.resource.data);
 
-      // O dono edita o próprio perfil, menos a nota. Serviços concluídos só sobem de 1 em 1.
+      // O dono edita o próprio perfil, menos a nota e o bloqueio por débito (só a Cloud Function grava).
+      // Serviços concluídos só sobem de 1 em 1.
       // Outro usuário só mexe na nota, e só junto com uma avaliação nova dele para este prestador.
       allow update: if (
           isUser(providerId)
-          && !changed().hasAny(['rating', 'reviewsCount', 'lastReviewId'])
+          && !changed().hasAny(['rating', 'reviewsCount', 'lastReviewId', 'blockedForDebt'])
           && (!changed().hasAny(['completedJobs'])
               || request.resource.data.completedJobs == resource.data.completedJobs + 1)
         ) || (
@@ -82,6 +84,16 @@ service cloud.firestore {
         && request.resource.data.status == 'pendente'
         && request.resource.data.reviewed == false
         && request.resource.data.price is number && request.resource.data.price > 0
+        // comissão: 8% do serviço com mínimo de R$ 5 (a Cloud Function usa platformFee no débito do prestador)
+        && request.resource.data.servicePrice is number && request.resource.data.servicePrice > 0
+        && request.resource.data.platformFee is number
+        && request.resource.data.platformFee >= 5
+        && request.resource.data.platformFee >= request.resource.data.servicePrice * 0.08 - 0.01
+        && request.resource.data.price >= request.resource.data.servicePrice + request.resource.data.platformFee - 0.01
+        && !('payout' in request.resource.data)
+        // com comissões acima do limite, o prestador só recebe pedidos pagos no app (que quitam o débito)
+        && (request.resource.data.payment != 'dinheiro'
+            || get(docAt('providers', request.resource.data.providerId)).data.get('blockedForDebt', false) != true)
         && text(request.resource.data.address, 300);
 
       // Cliente: atualiza a cópia do próprio nome/foto e marca como avaliado (junto com a avaliação).
@@ -98,6 +110,16 @@ service cloud.firestore {
               || (resource.data.status == 'aceito' && request.resource.data.status == 'concluido')))
       );
       allow delete: if false;
+    }
+
+    // Saldo do prestador (comissões de serviços pagos em dinheiro). Só a Cloud Function grava.
+    match /providerBalances/{providerId} {
+      allow read: if isUser(providerId);
+      allow write: if false;
+      match /entries/{entryId} {
+        allow read: if isUser(providerId);
+        allow write: if false;
+      }
     }
 
     // Horários ocupados, públicos para montar a agenda sem expor os pedidos.

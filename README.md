@@ -69,6 +69,17 @@ O app usa o SDK JavaScript do Firebase, que funciona no Expo Go (não precisa ge
 
 Um prestador só aparece nas buscas quando está **online**, tem **pelo menos uma especialidade e um serviço** e, se as duas localizações forem conhecidas, quando o cliente está dentro do **raio de atendimento**. O Painel do prestador mostra o que falta.
 
+### Cloud Functions (comissões em dinheiro)
+
+Quando um serviço pago em **dinheiro** é concluído, a comissão da plataforma (8%, mínimo de R$ 5) vira débito no saldo do prestador (`providerBalances/{uid}`). O débito é descontado automaticamente do próximo serviço pago por **Pix ou cartão**: o repasse gravado em `bookings/{id}.payout` já vem com o desconto. Com débito acima de R$ 50, o prestador continua nas buscas, mas só recebe pedidos pagos no app até o saldo baixar. Quem faz essas contas é a função `onBookingCompleted` em `functions/`; as regras impedem que o app altere o saldo ou o bloqueio.
+
+```bash
+cd functions && npm install && npm test      # testes das regras do saldo
+npx firebase-tools deploy --only functions,firestore --project SEU_PROJECT_ID
+```
+
+A transferência real do repasse para o prestador vem com a integração do Asaas (o `payout` fica como `pendente` até lá).
+
 ### Testando
 Crie duas contas pelo app (uma como **Quero trabalhar**, outra como **Quero contratar**). Dá para usar dois celulares, ou sair de uma conta e entrar na outra. No prestador, complete o perfil (especialidade, um serviço e a localização). No cliente, ele vai aparecer em **Explorar**: agende, converse pelo chat, aceite e conclua pelo prestador e avalie pelo cliente.
 

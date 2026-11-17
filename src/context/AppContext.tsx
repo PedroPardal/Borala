@@ -57,6 +57,7 @@ export interface NewBooking {
   address: string;
   payment: PaymentMethod;
   price: number;
+  platformFee: number;
   notes?: string;
 }
 
@@ -429,7 +430,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!uid) return;
       requireOnline();
       // campos calculados ou controlados pelas avaliações nunca são gravados pelo dono
-      const { id: _id, distanceKm: _d, rating: _r, reviewsCount: _c, ...data } = patch;
+      const { id: _id, distanceKm: _d, rating: _r, reviewsCount: _c, blockedForDebt: _b, ...data } = patch;
       await updateDoc(doc(fb.db, 'providers', uid), data);
     },
     [uid],
@@ -456,6 +457,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         address: b.address,
         payment: b.payment,
         price: b.price,
+        servicePrice: b.service.price,
+        platformFee: b.platformFee,
         status: 'pendente',
         reviewed: false,
         notes: b.notes,

@@ -77,6 +77,8 @@ export interface Provider {
   portfolio: PortfolioItem[];
   availability: WeeklySlot[];
   online: boolean;
+  /** gravado só pela Cloud Function: com comissões acima do limite, o prestador não aceita pedidos em dinheiro */
+  blockedForDebt?: boolean;
   location?: GeoPoint | null;
   area?: string; // "Bairro, Cidade"
   createdAt: number;
@@ -115,10 +117,45 @@ export interface Booking {
   time: string; // "09:00"
   address: string;
   payment: PaymentMethod;
+  /** total cobrado do cliente (serviço + taxa da plataforma + acréscimo do cartão) */
   price: number;
+  /** valor do serviço que vai para o prestador (pedidos antigos não têm) */
+  servicePrice?: number;
+  /** comissão da plataforma neste pedido */
+  platformFee?: number;
+  /** preenchido pela Cloud Function quando um pedido pago no app é concluído */
+  payout?: BookingPayout;
   status: BookingStatus;
   reviewed: boolean;
   notes?: string;
+  createdAt: number;
+}
+
+/** Repasse ao prestador de um pedido pago por Pix ou cartão. */
+export interface BookingPayout {
+  /** quanto o prestador recebe depois do desconto */
+  amount: number;
+  /** comissões de serviços em dinheiro descontadas deste repasse */
+  debtDeducted: number;
+  status: 'pendente' | 'pago';
+  createdAt: number;
+}
+
+/** providerBalances/{providerId}: só a Cloud Function grava; o prestador lê o próprio */
+export interface ProviderBalance {
+  /** comissões de serviços pagos em dinheiro que ainda não foram descontadas */
+  cashDebt: number;
+  updatedAt: number;
+}
+
+/** providerBalances/{providerId}/entries/{id}: histórico do saldo */
+export interface BalanceEntry {
+  id: string;
+  type: 'comissao_dinheiro' | 'desconto_repasse';
+  /** positivo aumenta o débito, negativo diminui */
+  amount: number;
+  bookingId: string;
+  serviceTitle: string;
   createdAt: number;
 }
 

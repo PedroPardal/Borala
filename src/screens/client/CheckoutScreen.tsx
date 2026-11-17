@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -43,6 +43,10 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
   const addresses = profile?.addresses ?? [];
 
   const [payment, setPayment] = useState<PaymentMethod>('pix');
+  // prestador com comissões acima do limite não aceita dinheiro (as regras recusariam o pedido)
+  useEffect(() => {
+    if (provider.blockedForDebt && payment === 'dinheiro') setPayment('pix');
+  }, [provider.blockedForDebt, payment]);
   const [addressId, setAddressId] = useState(addresses[0]?.id);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -65,6 +69,7 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
         address: `${address.street} - ${address.city}`,
         payment,
         price: total,
+        platformFee: price.fee,
         notes: notes.trim() || undefined,
       });
       // substitui a pilha de agendamento pela tela de sucesso
@@ -136,7 +141,7 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
         <FadeInView delay={120}>
           <Text style={styles.h}>Pagamento</Text>
           <View style={styles.methods}>
-            {METHODS.map((m) => {
+            {METHODS.filter((m) => m.id !== 'dinheiro' || !provider.blockedForDebt).map((m) => {
               const active = m.id === payment;
               return (
                 <PressableScale

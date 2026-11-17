@@ -81,6 +81,7 @@ export default function RequestsScreen() {
         renderItem={({ item, index }) => (
           <FadeInView delay={index * 80}>
             <RequestCard
+              forProvider
               booking={item}
               title={item.clientName}
               avatar={item.clientAvatar}

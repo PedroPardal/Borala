@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { collection, limitToLast, onSnapshot, orderBy, query, where } from 'firebase/firestore';
-import { ChatMessage, Review } from '../types';
+import { collection, doc, limitToLast, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { BalanceEntry, ChatMessage, ProviderBalance, Review } from '../types';
 import { fb } from '../services/firebase';
 
 /** Mensagens de uma conversa em tempo real (as 300 mais recentes). */
@@ -48,4 +48,29 @@ export function useBusySlots(providerId: string, date: string) {
     );
   }, [providerId, date]);
   return taken;
+}
+
+/** Saldo do prestador (comissões de serviços em dinheiro) e as últimas movimentações. */
+export function useProviderBalance(providerId: string | undefined) {
+  const [balance, setBalance] = useState<ProviderBalance | null>(null);
+  const [entries, setEntries] = useState<BalanceEntry[]>([]);
+  useEffect(() => {
+    if (!providerId) return;
+    const unsubBalance = onSnapshot(
+      doc(fb.db, 'providerBalances', providerId),
+      (snap) => setBalance(snap.exists() ? (snap.data() as ProviderBalance) : null),
+      (e) => console.warn('[balance]', e),
+    );
+    const q = query(collection(fb.db, 'providerBalances', providerId, 'entries'), orderBy('createdAt'), limitToLast(10));
+    const unsubEntries = onSnapshot(
+      q,
+      (snap) => setEntries(snap.docs.map((d) => ({ ...(d.data() as Omit<BalanceEntry, 'id'>), id: d.id })).reverse()),
+      (e) => console.warn('[balance entries]', e),
+    );
+    return () => {
+      unsubBalance();
+      unsubEntries();
+    };
+  }, [providerId]);
+  return { debt: balance?.cashDebt ?? 0, entries };
 }

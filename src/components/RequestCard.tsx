@@ -25,6 +25,8 @@ interface Props {
   onAccept?: () => void;
   onDecline?: () => void;
   footer?: React.ReactNode;
+  /** mostra quanto o prestador recebe e o desconto de comissões */
+  forProvider?: boolean;
 }
 
 export function StatusBadge({ status }: { status: BookingStatus }) {
@@ -36,7 +38,7 @@ export function StatusBadge({ status }: { status: BookingStatus }) {
   );
 }
 
-export default function RequestCard({ booking, title, avatar, onAccept, onDecline, footer }: Props) {
+export default function RequestCard({ booking, title, avatar, onAccept, onDecline, footer, forProvider }: Props) {
   // animação de saída ao aceitar/recusar
   const anim = useRef(new Animated.Value(1)).current;
   const dir = useRef(new Animated.Value(1)).current; // 1 = direita (aceitar), -1 = esquerda (recusar)
@@ -68,6 +70,7 @@ export default function RequestCard({ booking, title, avatar, onAccept, onDeclin
         <Meta icon="calendar" text={`${formatDateLong(booking.date)} • ${booking.time}`} />
         <Meta icon="location" text={booking.address} />
         <Meta icon="wallet" text={`${PAYMENT[booking.payment]} • ${formatBRL(booking.price)}`} />
+        {forProvider && <ProviderMoney booking={booking} />}
         {booking.notes ? <Meta icon="chatbubble-ellipses" text={`"${booking.notes}"`} /> : null}
       </View>
 
@@ -81,6 +84,29 @@ export default function RequestCard({ booking, title, avatar, onAccept, onDeclin
       {footer}
     </Animated.View>
   );
+}
+
+/** O que o prestador recebe: em dinheiro, a comissão vira débito; no app, o repasse já vem com o desconto. */
+function ProviderMoney({ booking }: { booking: Booking }) {
+  if (booking.servicePrice === undefined || booking.platformFee === undefined) return null;
+  if (booking.payment === 'dinheiro') {
+    return (
+      <Meta
+        icon="receipt"
+        text={`Receba ${formatBRL(booking.price)} em mãos. A comissão de ${formatBRL(booking.platformFee)} será descontada do seu próximo serviço pago no app.`}
+      />
+    );
+  }
+  if (booking.payout) {
+    const { amount, debtDeducted } = booking.payout;
+    return (
+      <Meta
+        icon="cash"
+        text={`Você recebe ${formatBRL(amount)}${debtDeducted > 0 ? ` (${formatBRL(debtDeducted)} de comissões em dinheiro descontados)` : ''}`}
+      />
+    );
+  }
+  return <Meta icon="cash" text={`Você recebe até ${formatBRL(booking.servicePrice)}`} />;
 }
 
 function Meta({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
