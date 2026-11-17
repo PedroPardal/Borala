@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
 import Card from '../../components/Card';
 import Chip from '../../components/Chip';
@@ -109,8 +110,8 @@ export default function PayoutAccountScreen({ navigation }: RootScreenProps<'Pay
   };
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <KeyboardAwareScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 60 }} keyboardShouldPersistTaps="handled" bottomOffset={24}>
         <Card style={{ marginBottom: spacing.lg }}>
           <Text style={styles.bold}>{t('payout.whyTitle')}</Text>
           <Text style={styles.muted}>
@@ -162,7 +163,7 @@ export default function PayoutAccountScreen({ navigation }: RootScreenProps<'Pay
         <Text style={[styles.muted, { marginTop: spacing.md, textAlign: 'center' }]}>
           {t('payout.privacy')}
         </Text>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </KeyboardAvoidingView>
   );
 }

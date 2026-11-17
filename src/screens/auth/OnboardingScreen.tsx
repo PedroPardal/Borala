@@ -5,8 +5,6 @@ import {
   Animated,
   BackHandler,
   Image,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +13,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Melo, { MeloPose } from '../../components/Melo';
@@ -473,8 +472,10 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
     <SafeAreaView style={styles.safe}>
       <FloatingDecor />
       <Header onBack={saving ? undefined : back} progress={isForm ? { total: flow.length, current: flowIndex } : undefined} />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      {/* mesmo padrão das outras telas: o rodapé sobe junto com o teclado e a lista rola até o campo
+          selecionado, então o teclado não cobre o que está sendo digitado (no Android também) */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <KeyboardAwareScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" bottomOffset={24}>
           <View style={styles.talkRow}>
             <Melo pose={talkPose} size={FACES.includes(talkPose) ? 92 : 112} onPress={talk} />
             <SpeechBubble text={bubbleText} tail="left" tone={error ? 'alert' : 'normal'} style={styles.sideBubble} />
@@ -680,7 +681,7 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
               )}
             </Animated.View>
           </StepView>
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         <View style={styles.footer}>
           <DuoButton
