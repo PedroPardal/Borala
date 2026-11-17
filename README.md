@@ -72,7 +72,7 @@ Um prestador só aparece nas buscas quando está **online**, tem **pelo menos um
 ### Testando
 Crie duas contas pelo app (uma como **Quero trabalhar**, outra como **Quero contratar**). Dá para usar dois celulares, ou sair de uma conta e entrar na outra. No prestador, complete o perfil (especialidade, um serviço e a localização). No cliente, ele vai aparecer em **Explorar**: agende, converse pelo chat, aceite e conclua pelo prestador e avalie pelo cliente.
 
-> O pagamento ainda é combinado direto com o prestador. A taxa exibida no checkout é só informativa.
+> O pagamento ainda é combinado direto com o prestador. A taxa exibida no checkout é só informativa: 8% do serviço com mínimo de R$ 5, e o cartão tem um acréscimo que cobre a tarifa do gateway (o Pix não tem).
 
 ## 📂 Estrutura
 

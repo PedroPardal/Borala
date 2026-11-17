@@ -14,16 +14,17 @@ import { PaymentMethod, PriceItem, Provider } from '../../types';
 import { RootScreenProps } from '../../navigation/types';
 import { colors, radius, spacing } from '../../theme';
 import { formatBRL, formatDateLong } from '../../utils/format';
+import { MIN_PLATFORM_FEE, priceFor } from '../../utils/pricing';
 import { feedback } from '../../services/feedback';
 import { firebaseErrorMessage } from '../../services/firebase';
 
+const PIX_COLOR = '#32BCAD';
+
 const METHODS: { id: PaymentMethod; label: string; desc: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
-  { id: 'pix', label: 'Pix', desc: 'Aprovação instantânea', icon: 'flash', color: '#32BCAD' },
+  { id: 'pix', label: 'Pix', desc: 'Instantâneo, sem acréscimo', icon: 'flash', color: PIX_COLOR },
   { id: 'cartao', label: 'Cartão', desc: 'Crédito ou débito', icon: 'card', color: colors.blue },
   { id: 'dinheiro', label: 'Dinheiro', desc: 'Pague ao prestador', icon: 'cash', color: colors.primary },
 ];
-
-const SERVICE_FEE = 0.08; // taxa da plataforma (o pagamento é combinado com o prestador; ainda não há cobrança no app)
 
 export default function CheckoutScreen(props: RootScreenProps<'Checkout'>) {
   const { getProvider } = useApp();
@@ -46,8 +47,10 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const fee = Math.round(service.price * SERVICE_FEE * 100) / 100;
-  const total = service.price + fee;
+  const price = priceFor(service.price, payment);
+  const total = price.total;
+  // quanto o cliente economiza escolhendo Pix em vez de cartão
+  const pixSavings = priceFor(service.price, 'cartao').total - priceFor(service.price, 'pix').total;
   const address = addresses.find((a) => a.id === addressId) ?? addresses[0];
 
   const confirm = async () => {
@@ -142,6 +145,11 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
                   onPress={() => setPayment(m.id)}
                   style={[styles.method, active && { borderColor: m.color, backgroundColor: `${m.color}14` }]}
                 >
+                  {m.id === 'pix' && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>Mais barato</Text>
+                    </View>
+                  )}
                   <View style={[styles.methodIcon, { backgroundColor: active ? m.color : colors.border }]}>
                     <Ionicons name={m.icon} size={22} color={colors.white} />
                   </View>
@@ -151,6 +159,14 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
               );
             })}
           </View>
+          {payment === 'cartao' && pixSavings > 0 && (
+            <PressableScale sound="select" onPress={() => setPayment('pix')} style={styles.pixTip}>
+              <Ionicons name="flash" size={18} color={PIX_COLOR} />
+              <Text style={styles.pixTipText}>
+                Pague com Pix e economize {formatBRL(pixSavings)}. <Text style={styles.pixTipLink}>Usar Pix</Text>
+              </Text>
+            </PressableScale>
+          )}
         </FadeInView>
 
         <FadeInView delay={180}>
@@ -168,7 +184,8 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
         <FadeInView delay={240}>
           <Card style={{ marginTop: spacing.xl }}>
             <Row label={service.title} value={formatBRL(service.price)} />
-            <Row label="Taxa da plataforma" value={formatBRL(fee)} />
+            <Row label={price.minFeeApplied ? `Taxa da plataforma (mínimo ${formatBRL(MIN_PLATFORM_FEE)})` : 'Taxa da plataforma'} value={formatBRL(price.fee)} />
+            {price.surcharge > 0 && <Row label="Acréscimo do cartão" value={formatBRL(price.surcharge)} />}
             <View style={styles.divider} />
             <Row label="Total estimado" value={formatBRL(total)} strong />
           </Card>
@@ -218,7 +235,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   optionActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
-  methods: { flexDirection: 'row', gap: spacing.sm },
+  methods: { flexDirection: 'row', gap: spacing.sm, paddingTop: 10 },
   method: {
     flex: 1,
     alignItems: 'center',
@@ -230,6 +247,28 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingHorizontal: 6,
   },
+  badge: {
+    position: 'absolute',
+    top: -10,
+    backgroundColor: PIX_COLOR,
+    borderRadius: radius.md,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  badgeText: { fontSize: 10, fontWeight: '900', color: colors.white },
+  pixTip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: PIX_COLOR,
+    backgroundColor: `${PIX_COLOR}14`,
+  },
+  pixTipText: { flex: 1, fontSize: 13, fontWeight: '700', color: colors.text },
+  pixTipLink: { color: PIX_COLOR, fontWeight: '900' },
   methodIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   notes: {
     minHeight: 90,
