@@ -171,6 +171,7 @@ function ProviderDetails({ navigation, provider }: RootScreenProps<'ProviderDeta
                   <View style={[styles.radio, active && { borderColor: colors.primary }]}>
                     {active && <View style={styles.radioDot} />}
                   </View>
+                  {s.photo ? <Image source={{ uri: s.photo }} style={styles.servicePhoto} /> : null}
                   <View style={{ flex: 1 }}>
                     <Text style={styles.serviceTitle}>{s.title}</Text>
                     <Text style={styles.serviceUnit}>{s.unit}</Text>
@@ -229,6 +230,7 @@ function Stat({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; va
 }
 
 const styles = StyleSheet.create({
+  servicePhoto: { width: 52, height: 40, borderRadius: 8, marginRight: 10 },
   flex: { flex: 1, backgroundColor: colors.bg },
   stickyHeader: {
     position: 'absolute',

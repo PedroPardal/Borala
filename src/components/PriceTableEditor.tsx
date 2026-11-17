@@ -9,10 +9,10 @@ import { colors, radius, spacing } from '../theme';
 import { feedback } from '../services/feedback';
 
 /** Rascunho com o preço como texto, para o campo aceitar "45,50" enquanto digita. */
-type Draft = { id: string; title: string; unit: string; price: string };
+type Draft = { id: string; title: string; unit: string; price: string; photo?: string };
 
 const toDraft = (items: PriceItem[]): Draft[] =>
-  items.map((s) => ({ id: s.id, title: s.title, unit: s.unit, price: String(s.price).replace('.', ',') }));
+  items.map((s) => ({ id: s.id, title: s.title, unit: s.unit, price: String(s.price).replace('.', ','), photo: s.photo }));
 
 const parsePrice = (v: string) => Number(v.replace(/\./g, '').replace(',', '.'));
 
@@ -38,7 +38,10 @@ export default function PriceTableEditor({ items, onSave }: { items: PriceItem[]
   const save = () => {
     const invalid = draft.some((d) => d.title.trim().length < 2 || !(parsePrice(d.price) > 0));
     if (invalid) return feedback.error();
-    onSave(draft.map((d) => ({ id: d.id, title: d.title.trim(), unit: d.unit.trim() || 'por serviço', price: parsePrice(d.price) })));
+    // a foto do serviço (do cadastro) é mantida ao editar nome e preço
+    onSave(
+      draft.map((d) => ({ id: d.id, title: d.title.trim(), unit: d.unit.trim() || 'por serviço', price: parsePrice(d.price), photo: d.photo })),
+    );
     feedback.success();
   };
 

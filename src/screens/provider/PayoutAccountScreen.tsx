@@ -40,8 +40,9 @@ function maskDate(v: string) {
  */
 export default function PayoutAccountScreen({ navigation }: RootScreenProps<'PayoutAccount'>) {
   const { loggedProvider, profile } = useApp();
-  const [cpfCnpj, setCpfCnpj] = useState('');
-  const [birth, setBirth] = useState('');
+  // já vem preenchido com o que a pessoa informou no cadastro com o Mélo
+  const [cpfCnpj, setCpfCnpj] = useState(profile?.cpf ?? '');
+  const [birth, setBirth] = useState(profile?.birthDate ? profile.birthDate.split('-').reverse().join('/') : '');
   const [companyType, setCompanyType] = useState<PayoutAccountForm['companyType']>('MEI');
   const [phone, setPhone] = useState(profile?.phone ?? '');
   const [income, setIncome] = useState('');

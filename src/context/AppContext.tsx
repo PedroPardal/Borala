@@ -21,8 +21,10 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import {
+  Address,
   Booking,
   BookingStatus,
+  CategoryId,
   Conversation,
   GeoPoint,
   PaymentMethod,
@@ -60,6 +62,25 @@ export interface NewBooking {
   notes?: string;
 }
 
+/** Tudo o que o cadastro com o Mélo coleta (veja screens/auth/OnboardingScreen). */
+export interface OnboardingData {
+  role: UserRole;
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+  cpf?: string;
+  birthDate?: string;
+  address?: Address;
+  provider?: {
+    bio: string;
+    categories: CategoryId[];
+    /** fotos locais (do seletor); são enviadas ao Storage depois de criar a conta */
+    avatarUri?: string;
+    service: { title: string; price: number; unit: string; photoUri: string };
+  };
+}
+
 type ConversationParties = Pick<
   Conversation,
   'clientId' | 'providerId' | 'clientName' | 'clientAvatar' | 'providerName' | 'providerAvatar'
@@ -71,7 +92,11 @@ interface AppContextValue {
   session: Session | null;
   profile: UserProfile | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (p: { role: UserRole; name: string; email: string; password: string }) => Promise<void>;
+  /** cria a conta, envia as fotos e grava perfil (e perfil de prestador) de uma vez */
+  completeSignUp: (d: OnboardingData) => Promise<{ photosFailed: boolean }>;
+  /** true do fim do cadastro até a pessoa sair da tela de comemoração do Mélo */
+  onboardingHold: boolean;
+  releaseOnboarding: () => void;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   /** troca a conta entre contratar (cliente) e divulgar serviços (prestador) */
@@ -301,26 +326,67 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await signInWithEmailAndPassword(fb.auth, email.trim(), password);
   }, []);
 
-  const signUp = useCallback<AppContextValue['signUp']>(async ({ role: newRole, name, email, password }) => {
+  const [onboardingHold, setOnboardingHold] = useState(false);
+  const releaseOnboarding = useCallback(() => setOnboardingHold(false), []);
+
+  const completeSignUp = useCallback<AppContextValue['completeSignUp']>(async (d) => {
+    requireOnline();
     signingUp.current = true;
+    // segura a tela do Mélo mesmo depois que o perfil existir, para mostrar a comemoração
+    setOnboardingHold(true);
     try {
-      const cred = await createUserWithEmailAndPassword(fb.auth, email.trim(), password);
-      const id = cred.user.uid;
+      const email = d.email.trim();
+      // numa nova tentativa (ex.: a gravação falhou), o login com esse e-mail já pode existir
+      const current = fb.auth.currentUser;
+      const user =
+        current && current.email?.toLowerCase() === email.toLowerCase()
+          ? current
+          : (await createUserWithEmailAndPassword(fb.auth, email, d.password)).user;
+      const id = user.uid;
+
+      // fotos: se falharem, a conta é criada assim mesmo e a pessoa troca depois no perfil
+      let photosFailed = false;
+      const upload = async (name: string, uri?: string) => {
+        if (!uri) return '';
+        try {
+          return await uploadUserImage(id, name, uri);
+        } catch (e) {
+          console.warn('[cadastro] falha ao enviar foto', e);
+          photosFailed = true;
+          return '';
+        }
+      };
+      const [avatar, servicePhoto] = await Promise.all([
+        upload('avatar', d.provider?.avatarUri),
+        upload('servico-s1', d.provider?.service.photoUri),
+      ]);
+
       const now = Date.now();
       const batch = writeBatch(fb.db);
-      batch.set(doc(fb.db, 'users', id), { role: newRole, name, email: email.trim(), avatar: '', addresses: [], createdAt: now });
-      if (newRole === 'provider') {
+      batch.set(doc(fb.db, 'users', id), {
+        role: d.role,
+        name: d.name,
+        email,
+        phone: d.phone,
+        cpf: d.cpf,
+        birthDate: d.birthDate,
+        avatar,
+        addresses: d.address ? [d.address] : [],
+        createdAt: now,
+      });
+      if (d.role === 'provider' && d.provider) {
+        const { service } = d.provider;
         const provider: Omit<Provider, 'id' | 'distanceKm'> = {
-          name,
-          avatar: '',
-          bio: '',
-          categories: [],
+          name: d.name,
+          avatar,
+          bio: d.provider.bio,
+          categories: d.provider.categories,
           rating: 0,
           reviewsCount: 0,
-          basePrice: 0,
+          basePrice: service.price,
           radiusKm: 10,
           completedJobs: 0,
-          priceTable: [],
+          priceTable: [{ id: 's1', title: service.title, price: service.price, unit: service.unit, photo: servicePhoto || undefined }],
           portfolio: [],
           availability: defaultAvailability,
           online: true,
@@ -330,6 +396,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         batch.set(doc(fb.db, 'providers', id), provider);
       }
       await batch.commit();
+      return { photosFailed };
+    } catch (e) {
+      setOnboardingHold(false);
+      throw e;
     } finally {
       signingUp.current = false;
     }
@@ -575,11 +645,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AppContextValue>(
     () => ({
-      initializing: !authResolved || (!!uid && !profile),
+      // durante o cadastro com o Mélo a conta existe antes do perfil: não mostrar a tela de carregamento
+      // (ela desmontaria o cadastro e perderia o passo da comemoração)
+      initializing: !authResolved || (!!uid && !profile && !onboardingHold),
       session,
       profile,
       signIn,
-      signUp,
+      completeSignUp,
+      onboardingHold,
+      releaseOnboarding,
       resetPassword,
       signOut,
       switchRole,
@@ -610,7 +684,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       session,
       profile,
       signIn,
-      signUp,
+      completeSignUp,
+      onboardingHold,
+      releaseOnboarding,
       resetPassword,
       signOut,
       switchRole,

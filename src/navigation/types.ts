@@ -17,6 +17,7 @@ export type ProviderTabParamList = {
 };
 
 export type RootStackParamList = {
+  Onboarding: undefined;
   Login: undefined;
   ClientTabs: NavigatorScreenParams<ClientTabParamList>;
   ProviderTabs: NavigatorScreenParams<ProviderTabParamList>;

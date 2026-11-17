@@ -11,6 +11,8 @@ import { LogoMark } from '../components/Logo';
 import SetupScreen from '../screens/auth/SetupScreen';
 
 import LoginScreen from '../screens/auth/LoginScreen';
+import OnboardingScreen from '../screens/auth/OnboardingScreen';
+import { useOnboardingSeen } from '../services/onboarding';
 import ClientTabs from './ClientTabs';
 import ProviderTabs from './ProviderTabs';
 import ProviderDetailsScreen from '../screens/client/ProviderDetailsScreen';
@@ -42,11 +44,12 @@ const stackOptions: NativeStackNavigationOptions = {
 };
 
 export default function RootNavigator() {
-  const { session, initializing } = useApp();
+  const { session, initializing, onboardingHold } = useApp();
+  const onboardingSeen = useOnboardingSeen();
   const lastDepth = useRef(0);
 
   if (!isFirebaseConfigured) return <SetupScreen />;
-  if (initializing) {
+  if (initializing || onboardingSeen === null) {
     // enquanto o Firebase confere se há login salvo
     return (
       <View style={{ flex: 1, backgroundColor: colors.navy, alignItems: 'center', justifyContent: 'center' }}>
@@ -69,8 +72,20 @@ export default function RootNavigator() {
   return (
     <NavigationContainer theme={navTheme} onStateChange={handleStateChange}>
       <Stack.Navigator screenOptions={stackOptions}>
-        {!session ? (
-          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false, animation: 'fade' }} />
+        {!session || onboardingHold ? (
+          // primeira vez no aparelho: abre no cadastro com o Mélo; depois, no login.
+          // onboardingHold mantém o Mélo na tela para a comemoração depois de criar a conta.
+          onboardingSeen && !onboardingHold ? (
+            <>
+              <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false, animation: 'fade' }} />
+              <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ headerShown: false, animation: 'fade' }} />
+            </>
+          ) : (
+            <>
+              <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ headerShown: false, animation: 'fade' }} />
+              <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+            </>
+          )
         ) : session.role === 'client' ? (
           <>
             <Stack.Screen name="ClientTabs" component={ClientTabs} options={{ headerShown: false, animation: 'fade' }} />

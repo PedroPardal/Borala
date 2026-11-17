@@ -35,6 +35,8 @@ export interface PriceItem {
   title: string;
   price: number;
   unit: string; // ex: "por hora", "por m²"
+  /** foto do serviço (URL do Storage) */
+  photo?: string;
 }
 
 export interface PortfolioItem {
@@ -97,6 +99,8 @@ export interface UserProfile {
   phone?: string;
   /** exigido pelo Asaas para cobrar por Pix ou cartão */
   cpf?: string;
+  /** yyyy-mm-dd; o prestador informa no cadastro (o Asaas pede para a conta de recebimento) */
+  birthDate?: string;
   avatar: string;
   addresses: Address[];
   createdAt: number;

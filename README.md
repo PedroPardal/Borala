@@ -106,7 +106,7 @@ npm run test:e2e   # regras + funções no emulador do Firebase, com um Asaas fa
 ```
 
 ### Testando
-Crie duas contas pelo app (uma como **Quero trabalhar**, outra como **Quero contratar**). Dá para usar dois celulares, ou sair de uma conta e entrar na outra. No prestador, complete o perfil (especialidade, um serviço e a localização). No cliente, ele vai aparecer em **Explorar**: agende, converse pelo chat, aceite e conclua pelo prestador e avalie pelo cliente.
+Crie duas contas pelo cadastro com o Mélo (uma em **Quero trabalhar**, outra em **Quero contratar**). Para ver o cadastro de novo no mesmo aparelho, toque em **Criar conta com o Mélo** na tela de login. Dá para usar dois celulares, ou sair de uma conta e entrar na outra. No prestador, complete o perfil (especialidade, um serviço e a localização). No cliente, ele vai aparecer em **Explorar**: agende, converse pelo chat, aceite e conclua pelo prestador e avalie pelo cliente.
 
 > A taxa da plataforma é 8% do serviço com mínimo de R$ 5. O cartão tem um acréscimo que cobre a tarifa do Asaas; o Pix não tem.
 
@@ -139,6 +139,7 @@ jardimja/
     │   ├── TabIcon.tsx          # Ícone que "pula" ao ser selecionado
     │   └── types.ts             # Tipagem das rotas
     ├── screens/
+    │   ├── auth/OnboardingScreen.tsx  # Cadastro animado com o Mélo (trabalhar ou contratar)
     │   ├── auth/LoginScreen.tsx
     │   ├── client/   Home · ProviderDetails · Schedule · Checkout · BookingSuccess · Orders · Review · ClientProfile
     │   ├── provider/ Dashboard · Requests · ProviderSettings
@@ -150,6 +151,17 @@ jardimja/
     ├── types/index.ts          # Modelos de domínio
     └── utils/format.ts         # Moeda (R$), datas
 ```
+
+## 🐶 Mélo, o mascote
+
+Na primeira vez que o app abre, o **Mélo** recebe a pessoa e conversa com ela (balão com texto sendo digitado) para fazer o cadastro:
+
+- **Quero trabalhar:** nome completo → CPF, nascimento e celular → áreas de atuação → foto e bio → primeiro serviço (nome, preço, unidade e foto) → e-mail e senha.
+- **Quero contratar:** nome e celular → endereço (o CEP preenche a rua pela ViaCEP) → e-mail e senha.
+
+Nada é gravado até o último passo: aí a conta é criada, as fotos sobem para o Storage e o perfil (e o perfil público do prestador) é gravado de uma vez. O Mélo comemora com confete e o app abre. Se algum campo estiver errado, ele faz cara de curioso e explica no balão; tocar nele faz ele pular e falar alguma coisa.
+
+As poses ficam em `assets/melo/` (PNG com fundo transparente, recortadas da folha do personagem). Para trocar por versões melhores, substitua os arquivos mantendo os nomes; se a proporção mudar, atualize o `ratio` em `src/components/Melo.tsx`.
 
 ## ✨ Feedback "estilo Duolingo"
 
