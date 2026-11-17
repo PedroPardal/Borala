@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import PressableScale from './PressableScale';
 import Avatar from './Avatar';
@@ -7,7 +7,8 @@ import RatingStars from './RatingStars';
 import { cardStyle } from './Card';
 import { Provider } from '../types';
 import { categories } from '../data/categories';
-import { colors, spacing } from '../theme';
+import { colors, spacing, makeStyles } from '../theme';
+import { t } from '../i18n';
 import { formatBRL } from '../utils/format';
 
 export default function ProviderCard({ provider, onPress }: { provider: Provider; onPress: () => void }) {
@@ -22,7 +23,7 @@ export default function ProviderCard({ provider, onPress }: { provider: Provider
         {provider.reviewsCount > 0 ? (
           <RatingStars rating={provider.rating} showValue count={provider.reviewsCount} size={13} />
         ) : (
-          <Text style={styles.newBadge}>Novo ✨</Text>
+          <Text style={styles.newBadge}>{t('card.new')}</Text>
         )}
         <View style={styles.tags}>
           {cats.map((c) => (
@@ -35,11 +36,11 @@ export default function ProviderCard({ provider, onPress }: { provider: Provider
           <View style={styles.row}>
             <Ionicons name="location" size={14} color={colors.textMuted} />
             <Text style={styles.muted} numberOfLines={1}>
-              {provider.distanceKm !== undefined ? `${provider.distanceKm.toFixed(1)} km` : provider.area ?? 'Sem localização'}
+              {provider.distanceKm !== undefined ? `${provider.distanceKm.toFixed(1)} km` : provider.area ?? t('card.noLocation')}
             </Text>
           </View>
           <Text style={styles.price}>
-            <Text style={styles.muted}>a partir de </Text>
+            <Text style={styles.muted}>{t('card.from')}</Text>
             {formatBRL(provider.basePrice)}
           </Text>
         </View>
@@ -48,8 +49,8 @@ export default function ProviderCard({ provider, onPress }: { provider: Provider
   );
 }
 
-const styles = StyleSheet.create({
-  card: { ...cardStyle, flexDirection: 'row', marginBottom: spacing.md },
+const styles = makeStyles(() => ({
+  card: { ...cardStyle(), flexDirection: 'row', marginBottom: spacing.md },
   info: { flex: 1, marginLeft: spacing.md },
   name: { fontSize: 17, fontWeight: '800', color: colors.text, marginBottom: 2 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 },
@@ -57,7 +58,7 @@ const styles = StyleSheet.create({
   tagText: { fontSize: 11, fontWeight: '800' },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
   row: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, marginRight: spacing.sm },
-  newBadge: { fontSize: 12, fontWeight: '800', color: colors.primaryDark },
+  newBadge: { fontSize: 12, fontWeight: '800', color: colors.primaryText },
   muted: { fontSize: 12, color: colors.textMuted, fontWeight: '600', marginLeft: 2 },
-  price: { fontSize: 15, fontWeight: '800', color: colors.primaryDark },
-});
+  price: { fontSize: 15, fontWeight: '800', color: colors.primaryText },
+}));

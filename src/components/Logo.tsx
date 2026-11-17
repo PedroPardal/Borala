@@ -1,6 +1,6 @@
 import React from 'react';
-import { Image, StyleProp, StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
-import { colors } from '../theme';
+import { Image, StyleProp, Text, TextStyle, View, ViewStyle } from 'react-native';
+import { colors, makeStyles } from '../theme';
 
 /** Ícone do app (pin + aperto de mão) com cantos arredondados. */
 export function LogoMark({ size = 88, style }: { size?: number; style?: StyleProp<ViewStyle> }) {
@@ -20,6 +20,6 @@ export function Wordmark({ size = 36, color = colors.white, style }: { size?: nu
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   word: { fontWeight: '900', letterSpacing: -1 },
-});
+}));

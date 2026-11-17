@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../components/Avatar';
 import RatingStars from '../../components/RatingStars';
@@ -8,12 +9,10 @@ import DuoButton from '../../components/DuoButton';
 import Confetti from '../../components/Confetti';
 import { useApp } from '../../context/AppContext';
 import { RootScreenProps } from '../../navigation/types';
-import { colors, radius, spacing } from '../../theme';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t, tList } from '../../i18n';
 import { feedback } from '../../services/feedback';
 import { firebaseErrorMessage } from '../../services/firebase';
-
-const LABELS = ['', 'Poxa… 😕', 'Pode melhorar', 'Bom!', 'Muito bom! 😄', 'Incrível! 🤩'];
-const TAGS = ['Pontual', 'Caprichoso', 'Educado', 'Preço justo', 'Cuidadoso', 'Rápido'];
 
 export default function ReviewScreen({ route, navigation }: RootScreenProps<'Review'>) {
   const insets = useSafeAreaInsets();
@@ -37,7 +36,10 @@ export default function ReviewScreen({ route, navigation }: RootScreenProps<'Rev
 
   if (!booking) return null;
 
-  const toggleTag = (t: string) => setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
+  // nota 1 a 5 → rótulo (índice 0 a 4)
+  const labels = tList('review.labels');
+  const allTags = tList('review.tags');
+  const toggleTag = (tag: string) => setTags((prev) => (prev.includes(tag) ? prev.filter((x) => x !== tag) : [...prev, tag]));
 
   const submit = async () => {
     if (!rating) {
@@ -47,58 +49,62 @@ export default function ReviewScreen({ route, navigation }: RootScreenProps<'Rev
     const text = [tags.join(' • '), comment.trim()].filter(Boolean).join('\n');
     setSending(true);
     try {
-      await addReview(booking, rating, text || 'Sem comentários.');
+      await addReview(booking, rating, text || t('review.noComment'));
       setDone(true);
       feedback.celebrate();
       setTimeout(() => navigation.goBack(), 1800);
     } catch (e) {
       feedback.error();
-      Alert.alert('Não foi possível enviar', firebaseErrorMessage(e));
+      Alert.alert(t('review.failed'), firebaseErrorMessage(e));
     } finally {
       setSending(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={{ padding: spacing.xl, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ padding: spacing.xl, paddingBottom: 140 }}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={110}
+      >
         <View style={{ alignItems: 'center' }}>
           <Avatar uri={booking.providerAvatar} size={84} />
-          <Text style={styles.title}>Como foi o serviço com {booking.providerName.split(' ')[0]}?</Text>
+          <Text style={styles.title}>{t('review.title', { name: booking.providerName.split(' ')[0] })}</Text>
           <Text style={styles.muted}>{booking.serviceTitle}</Text>
 
           <View style={{ marginVertical: spacing.xl }}>
             <RatingStars rating={rating} size={44} onChange={setRating} />
           </View>
           <Animated.Text style={[styles.label, { transform: [{ scale: labelScale }] }]}>
-            {rating ? LABELS[rating] : 'Toque nas estrelas'}
+            {rating ? labels[rating - 1] : t('review.tapStars')}
           </Animated.Text>
         </View>
 
         {rating > 0 && (
           <>
-            <Text style={styles.h}>O que se destacou?</Text>
+            <Text style={styles.h}>{t('review.highlights')}</Text>
             <View style={styles.tags}>
-              {TAGS.map((t) => (
-                <Chip key={t} label={t} selected={tags.includes(t)} onPress={() => toggleTag(t)} color={colors.blue} />
+              {allTags.map((tag) => (
+                <Chip key={tag} label={tag} selected={tags.includes(tag)} onPress={() => toggleTag(tag)} color={colors.blue} />
               ))}
             </View>
-            <Text style={styles.h}>Deixe um comentário (opcional)</Text>
+            <Text style={styles.h}>{t('review.comment')}</Text>
             <TextInput
               value={comment}
               onChangeText={setComment}
               multiline
-              placeholder="Conte como foi sua experiência…"
+              placeholder={t('review.commentPh')}
               placeholderTextColor={colors.textMuted}
               style={styles.input}
             />
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 12 }]}>
         <DuoButton
-          title={done ? 'Obrigado!' : 'Enviar avaliação'}
+          title={done ? t('review.thanks') : t('review.send')}
           variant="secondary"
           icon={done ? 'heart' : 'send'}
           disabled={!rating || done}
@@ -112,7 +118,7 @@ export default function ReviewScreen({ route, navigation }: RootScreenProps<'Rev
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   flex: { flex: 1, backgroundColor: colors.bg },
   title: { fontSize: 22, fontWeight: '900', color: colors.text, textAlign: 'center', marginTop: spacing.lg },
   muted: { fontSize: 14, fontWeight: '600', color: colors.textMuted, marginTop: 4 },
@@ -121,7 +127,7 @@ const styles = StyleSheet.create({
   tags: { flexDirection: 'row', flexWrap: 'wrap' },
   input: {
     minHeight: 100,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.border,
@@ -138,8 +144,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     padding: spacing.lg,
     paddingTop: 12,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderTopWidth: 2,
     borderTopColor: colors.border,
   },
-});
+}));

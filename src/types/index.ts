@@ -28,6 +28,8 @@ export interface Address {
   label: string;
   street: string;
   city: string;
+  /** ponto marcado no mapa (endereços antigos não têm) */
+  location?: GeoPoint;
 }
 
 export interface PriceItem {
@@ -35,6 +37,8 @@ export interface PriceItem {
   title: string;
   price: number;
   unit: string; // ex: "por hora", "por m²"
+  /** foto do serviço (URL do Storage) */
+  photo?: string;
 }
 
 export interface PortfolioItem {
@@ -77,6 +81,10 @@ export interface Provider {
   portfolio: PortfolioItem[];
   availability: WeeklySlot[];
   online: boolean;
+  /** gravado só pela Cloud Function: com comissões acima do limite, o prestador não aceita pedidos em dinheiro */
+  blockedForDebt?: boolean;
+  /** gravado só pela Cloud Function: o prestador tem conta no Asaas e recebe por Pix e cartão */
+  acceptsOnlinePayment?: boolean;
   location?: GeoPoint | null;
   area?: string; // "Bairro, Cidade"
   createdAt: number;
@@ -91,6 +99,10 @@ export interface UserProfile {
   name: string;
   email: string;
   phone?: string;
+  /** exigido pelo Asaas para cobrar por Pix ou cartão */
+  cpf?: string;
+  /** yyyy-mm-dd; o prestador informa no cadastro (o Asaas pede para a conta de recebimento) */
+  birthDate?: string;
   avatar: string;
   addresses: Address[];
   createdAt: number;
@@ -98,7 +110,10 @@ export interface UserProfile {
 
 export type PaymentMethod = 'pix' | 'cartao' | 'dinheiro';
 
-export type BookingStatus = 'pendente' | 'aceito' | 'recusado' | 'concluido';
+export type BookingStatus = 'pendente' | 'aceito' | 'recusado' | 'concluido' | 'cancelado';
+
+/** Pagamento por Pix ou cartão no Asaas (gravado só pela Cloud Function). */
+export type PaymentStatus = 'aguardando' | 'pago' | 'estornado' | 'cancelado';
 
 /** bookings/{id}: guarda cópia de nome/foto das duas partes para as listas */
 export interface Booking {
@@ -115,10 +130,75 @@ export interface Booking {
   time: string; // "09:00"
   address: string;
   payment: PaymentMethod;
+  /** total cobrado do cliente (serviço + taxa da plataforma + acréscimo do cartão) */
   price: number;
+  /** valor do serviço que vai para o prestador (pedidos antigos não têm) */
+  servicePrice?: number;
+  /** comissão da plataforma neste pedido */
+  platformFee?: number;
+  /** preenchido pela Cloud Function quando um pedido pago no app é concluído */
+  payout?: BookingPayout;
+  paymentStatus?: PaymentStatus;
   status: BookingStatus;
+  /** o cliente reportou um problema: não é concluído automaticamente e o repasse fica parado */
+  disputed?: boolean;
+  concludedBy?: 'automatico';
+  cancelledBy?: 'sem_pagamento';
   reviewed: boolean;
   notes?: string;
+  createdAt: number;
+}
+
+/** Repasse ao prestador de um pedido pago por Pix ou cartão. */
+export interface BookingPayout {
+  /** quanto o prestador recebe depois do desconto */
+  amount: number;
+  /** comissões de serviços em dinheiro descontadas deste repasse */
+  debtDeducted: number;
+  status: 'pendente' | 'processando' | 'pago' | 'erro';
+  createdAt: number;
+}
+
+/** O que a Cloud Function createPayment devolve para mostrar a cobrança. */
+export interface PaymentView {
+  billingType: 'PIX' | 'CREDIT_CARD';
+  value: number;
+  invoiceUrl: string;
+  pixPayload?: string;
+  /** PNG em base64 */
+  pixImage?: string;
+  pixExpiresAt?: string;
+}
+
+/** Dados que o Asaas pede para abrir a conta de recebimento do prestador. */
+export interface PayoutAccountForm {
+  cpfCnpj: string;
+  birthDate?: string; // yyyy-mm-dd (pessoa física)
+  companyType?: 'MEI' | 'LIMITED' | 'INDIVIDUAL' | 'ASSOCIATION'; // pessoa jurídica
+  mobilePhone: string;
+  incomeValue: number;
+  postalCode: string;
+  address: string;
+  addressNumber: string;
+  complement?: string;
+  province: string;
+}
+
+/** providerBalances/{providerId}: só a Cloud Function grava; o prestador lê o próprio */
+export interface ProviderBalance {
+  /** comissões de serviços pagos em dinheiro que ainda não foram descontadas */
+  cashDebt: number;
+  updatedAt: number;
+}
+
+/** providerBalances/{providerId}/entries/{id}: histórico do saldo */
+export interface BalanceEntry {
+  id: string;
+  type: 'comissao_dinheiro' | 'desconto_repasse';
+  /** positivo aumenta o débito, negativo diminui */
+  amount: number;
+  bookingId: string;
+  serviceTitle: string;
   createdAt: number;
 }
 

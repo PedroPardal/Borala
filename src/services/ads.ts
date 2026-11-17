@@ -1,11 +1,22 @@
 import Constants, { ExecutionEnvironment } from 'expo-constants';
-import { Platform } from 'react-native';
+import { NativeModules, Platform, TurboModuleRegistry } from 'react-native';
+
+/** O módulo nativo do AdMob está dentro deste app? (só existe no APK gerado com `eas build`) */
+function hasNativeAds(): boolean {
+  try {
+    return !!(TurboModuleRegistry.get('RNGoogleMobileAdsModule') ?? NativeModules.RNGoogleMobileAdsModule);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * O AdMob é um módulo nativo: não existe dentro do Expo Go. Lá os anúncios ficam desligados e o
  * resto do app funciona normal; no APK (development build ou preview) eles aparecem.
+ * Checa o módulo de verdade, e não só o ambiente: no Expo Go o ambiente nem sempre vem como "storeClient".
  */
-export const adsAvailable = Constants.executionEnvironment !== ExecutionEnvironment.StoreClient && Platform.OS !== 'web';
+export const adsAvailable =
+  Platform.OS !== 'web' && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient && hasNativeAds();
 
 type AdsModule = typeof import('react-native-google-mobile-ads');
 

@@ -1,18 +1,18 @@
 import React, { useRef } from 'react';
-import { ActivityIndicator, Animated, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { ActivityIndicator, Animated, Pressable, StyleProp, Text, View, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius } from '../theme';
+import { colors, radius, makeStyles } from '../theme';
 import { feedback } from '../services/feedback';
 
 type Variant = 'primary' | 'secondary' | 'blue' | 'danger' | 'outline';
 
-const PALETTE: Record<Variant, { bg: string; shadow: string; text: string; border?: string }> = {
+const palette = (): Record<Variant, { bg: string; shadow: string; text: string; border?: string }> => ({
   primary: { bg: colors.primary, shadow: colors.primaryDark, text: colors.white },
   secondary: { bg: colors.secondary, shadow: colors.secondaryDark, text: colors.onSecondary },
   blue: { bg: colors.blue, shadow: colors.blueDark, text: colors.white },
   danger: { bg: colors.danger, shadow: colors.dangerDark, text: colors.white },
-  outline: { bg: colors.white, shadow: colors.borderDark, text: colors.text, border: colors.borderDark },
-};
+  outline: { bg: colors.card, shadow: colors.borderDark, text: colors.text, border: colors.borderDark },
+});
 
 const DEPTH = 5;
 
@@ -45,7 +45,7 @@ export default function DuoButton({
   sound = 'tap',
 }: Props) {
   const press = useRef(new Animated.Value(0)).current;
-  const p = disabled ? { bg: colors.border, shadow: colors.borderDark, text: colors.textMuted } : PALETTE[variant];
+  const p = disabled ? { bg: colors.border, shadow: colors.borderDark, text: colors.textMuted } : palette()[variant];
 
   const to = (v: number) =>
     Animated.spring(press, { toValue: v, useNativeDriver: true, speed: 50, bounciness: v ? 0 : 10 }).start();
@@ -92,8 +92,8 @@ export default function DuoButton({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   base: { position: 'absolute', left: 0, right: 0 },
   face: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   text: { fontWeight: '800', letterSpacing: 0.8 },
-});
+}));

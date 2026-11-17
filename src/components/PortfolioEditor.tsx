@@ -1,21 +1,26 @@
 import React, { useState } from 'react';
-import { Alert, Image, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Card from './Card';
 import DuoButton from './DuoButton';
 import PressableScale from './PressableScale';
+import Photo from './Photo';
 import { PortfolioItem } from '../types';
-import { colors, radius, spacing } from '../theme';
+import { colors, makeStyles, radius, spacing } from '../theme';
 import { feedback } from '../services/feedback';
 import { pickImage } from '../services/pickImage';
 import { firebaseErrorMessage } from '../services/firebase';
+import { deletePhoto } from '../services/photos';
+import { t } from '../i18n';
 
 const MAX_ITEMS = 6;
+/** largura máxima das fotos de antes/depois, em pixels */
+const PHOTO_WIDTH = 960;
 
 interface Props {
   items: PortfolioItem[];
-  /** envia a foto local e devolve a URL salva */
-  upload: (name: string, localUri: string) => Promise<string>;
+  /** salva a foto escolhida e devolve a referência para gravar no perfil */
+  upload: (photo: string) => Promise<string>;
   onChange: (items: PortfolioItem[]) => Promise<void>;
 }
 
@@ -23,7 +28,7 @@ function PhotoSlot({ label, uri, onPick }: { label: string; uri: string | null; 
   return (
     <PressableScale style={styles.slot} onPress={onPick}>
       {uri ? (
-        <Image source={{ uri }} style={styles.slotImg} />
+        <Photo uri={uri} style={styles.slotImg} />
       ) : (
         <View style={styles.slotEmpty}>
           <Ionicons name="image-outline" size={26} color={colors.textMuted} />
@@ -34,7 +39,7 @@ function PhotoSlot({ label, uri, onPick }: { label: string; uri: string | null; 
   );
 }
 
-/** Fotos de "antes e depois" do prestador, salvas no Firebase Storage. */
+/** Fotos de "antes e depois" do prestador. */
 export default function PortfolioEditor({ items, upload, onChange }: Props) {
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState('');
@@ -49,48 +54,57 @@ export default function PortfolioEditor({ items, upload, onChange }: Props) {
     setAfter(null);
   };
 
+  const pick = async (set: (uri: string) => void) => {
+    const uri = await pickImage('gallery', [4, 3], PHOTO_WIDTH);
+    if (uri) set(uri);
+  };
+
   const save = async () => {
     if (title.trim().length < 2 || !before || !after) return feedback.error();
     setSaving(true);
     try {
-      const id = `pf${Date.now()}`;
-      const [beforeUrl, afterUrl] = await Promise.all([upload(`${id}-antes`, before), upload(`${id}-depois`, after)]);
-      await onChange([...items, { id, title: title.trim(), before: beforeUrl, after: afterUrl }]);
+      const [beforeRef, afterRef] = await Promise.all([upload(before), upload(after)]);
+      await onChange([...items, { id: `pf${Date.now()}`, title: title.trim(), before: beforeRef, after: afterRef }]);
       feedback.success();
       reset();
     } catch (e) {
       feedback.error();
-      Alert.alert('Não foi possível salvar', firebaseErrorMessage(e));
+      Alert.alert(t('common.couldNotSave'), firebaseErrorMessage(e));
     } finally {
       setSaving(false);
     }
   };
 
-  const remove = (id: string) => {
-    Alert.alert('Remover trabalho?', 'As fotos saem do seu perfil.', [
-      { text: 'Cancelar', style: 'cancel' },
+  const remove = (item: PortfolioItem) => {
+    Alert.alert(t('pf.removeTitle'), t('pf.removeBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Remover',
+        text: t('common.remove'),
         style: 'destructive',
-        onPress: () => onChange(items.filter((i) => i.id !== id)).catch(() => feedback.error()),
+        onPress: () =>
+          onChange(items.filter((i) => i.id !== item.id))
+            .then(() => {
+              // as fotos só eram usadas aqui: apaga do banco também
+              deletePhoto(item.before);
+              deletePhoto(item.after);
+            })
+            .catch(() => feedback.error()),
       },
     ]);
   };
 
   return (
     <Card>
-      {items.length === 0 && !adding && (
-        <Text style={styles.hint}>Mostre fotos de antes e depois dos seus trabalhos. Clientes confiam mais em quem tem portfólio.</Text>
-      )}
+      {items.length === 0 && !adding && <Text style={styles.hint}>{t('pf.hint')}</Text>}
       {items.map((i) => (
         <View key={i.id} style={styles.item}>
-          <Image source={{ uri: i.before }} style={styles.thumb} />
+          <Photo uri={i.before} style={styles.thumb} />
           <Ionicons name="arrow-forward" size={16} color={colors.textMuted} />
-          <Image source={{ uri: i.after }} style={styles.thumb} />
+          <Photo uri={i.after} style={styles.thumb} />
           <Text style={styles.itemTitle} numberOfLines={2}>
             {i.title}
           </Text>
-          <PressableScale sound="none" onPress={() => remove(i.id)} style={styles.trash}>
+          <PressableScale sound="none" onPress={() => remove(i)} style={styles.trash}>
             <Ionicons name="trash-outline" size={18} color={colors.danger} />
           </PressableScale>
         </View>
@@ -101,24 +115,24 @@ export default function PortfolioEditor({ items, upload, onChange }: Props) {
           <TextInput
             value={title}
             onChangeText={setTitle}
-            placeholder="Título (ex: Quintal limpo)"
+            placeholder={t('pf.titlePh')}
             placeholderTextColor={colors.textMuted}
             style={styles.input}
           />
           <View style={styles.slots}>
-            <PhotoSlot label="Antes" uri={before} onPick={async () => setBefore((await pickImage('gallery', [4, 3])) ?? before)} />
-            <PhotoSlot label="Depois" uri={after} onPick={async () => setAfter((await pickImage('gallery', [4, 3])) ?? after)} />
+            <PhotoSlot label={t('pf.before')} uri={before} onPick={() => pick(setBefore)} />
+            <PhotoSlot label={t('pf.after')} uri={after} onPick={() => pick(setAfter)} />
           </View>
           <View style={{ flexDirection: 'row', gap: spacing.md }}>
-            <DuoButton title="Cancelar" variant="outline" small style={{ flex: 1 }} onPress={reset} disabled={saving} />
-            <DuoButton title="Salvar" icon="cloud-upload" small style={{ flex: 1 }} onPress={save} loading={saving} sound="none" />
+            <DuoButton title={t('common.cancel')} variant="outline" small style={{ flex: 1 }} onPress={reset} disabled={saving} />
+            <DuoButton title={t('common.save')} icon="cloud-upload" small style={{ flex: 1 }} onPress={save} loading={saving} sound="none" />
           </View>
         </View>
       ) : (
         items.length < MAX_ITEMS && (
           <PressableScale style={styles.add} onPress={() => setAdding(true)} sound="none">
             <Ionicons name="add-circle" size={20} color={colors.primary} />
-            <Text style={styles.addText}>Adicionar trabalho</Text>
+            <Text style={styles.addText}>{t('pf.add')}</Text>
           </PressableScale>
         )
       )}
@@ -126,7 +140,7 @@ export default function PortfolioEditor({ items, upload, onChange }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   hint: { fontSize: 14, fontWeight: '600', color: colors.textMuted, lineHeight: 20 },
   item: {
     flexDirection: 'row',
@@ -136,9 +150,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  thumb: { width: 52, height: 40, borderRadius: 8, backgroundColor: colors.border },
+  thumb: { width: 52, height: 40, borderRadius: 8 },
   itemTitle: { flex: 1, fontSize: 14, fontWeight: '800', color: colors.text },
-  trash: { width: 36, height: 36, borderRadius: radius.sm, backgroundColor: '#FFF1F3', alignItems: 'center', justifyContent: 'center' },
+  trash: { width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.dangerLight, alignItems: 'center', justifyContent: 'center' },
   input: {
     height: 44,
     borderRadius: radius.sm,
@@ -166,4 +180,4 @@ const styles = StyleSheet.create({
   slotLabel: { marginTop: 6, fontSize: 13, fontWeight: '800', color: colors.textMuted },
   add: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingTop: spacing.md },
   addText: { fontSize: 15, fontWeight: '800', color: colors.primary },
-});
+}));

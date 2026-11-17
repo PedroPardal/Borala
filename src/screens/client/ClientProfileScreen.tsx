@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -13,16 +14,17 @@ import AddressForm from '../../components/AddressForm';
 import PressableScale from '../../components/PressableScale';
 import FadeInView from '../../components/FadeInView';
 import SwitchRoleCard from '../../components/SwitchRoleCard';
+import PreferencesCard from '../../components/PreferencesCard';
 import { useApp } from '../../context/AppContext';
 import { RootStackParamList } from '../../navigation/types';
-import { colors, radius, spacing } from '../../theme';
-import { feedback, Sound } from '../../services/feedback';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t } from '../../i18n';
+import { feedback } from '../../services/feedback';
 import { formatBRL } from '../../utils/format';
 
 export default function ClientProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { profile, updateProfile, signOut, bookings } = useApp();
-  const [soundOn, setSoundOn] = useState(Sound.isEnabled());
   const mine = bookings;
   const spent = mine.filter((b) => b.status === 'concluido').reduce((s, b) => s + b.price, 0);
 
@@ -37,7 +39,11 @@ export default function ClientProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={30}
+      >
         <FadeInView style={styles.head}>
           <PressableScale onPress={() => navigation.navigate('EditProfile')}>
             <Avatar uri={profile.avatar} size={84} />
@@ -49,7 +55,7 @@ export default function ClientProfileScreen() {
           <Text style={styles.muted}>{profile.email}</Text>
           {!!profile.phone && <Text style={styles.muted}>{profile.phone}</Text>}
           <DuoButton
-            title="Editar perfil"
+            title={t('common.editProfile')}
             icon="create"
             variant="outline"
             small
@@ -63,12 +69,12 @@ export default function ClientProfileScreen() {
         </FadeInView>
 
         <FadeInView delay={60} style={styles.stats}>
-          <StatCard label="Pedidos" value={`${mine.length}`} icon="receipt" color={colors.blue} />
-          <StatCard label="Investido" value={formatBRL(spent)} icon="wallet" color={colors.primary} />
+          <StatCard label={t('profile.orders')} value={`${mine.length}`} icon="receipt" color={colors.blue} />
+          <StatCard label={t('profile.spent')} value={formatBRL(spent)} icon="wallet" color={colors.primary} />
         </FadeInView>
 
         <FadeInView delay={120}>
-          <Text style={styles.h}>Endereços salvos</Text>
+          <Text style={styles.h}>{t('profile.addresses')}</Text>
           <Card>
             {profile.addresses.map((a) => (
               <View key={a.id} style={styles.addrRow}>
@@ -84,7 +90,7 @@ export default function ClientProfileScreen() {
                 </PressableScale>
               </View>
             ))}
-            {profile.addresses.length === 0 && !adding && <Text style={styles.muted}>Nenhum endereço salvo ainda.</Text>}
+            {profile.addresses.length === 0 && !adding && <Text style={styles.muted}>{t('profile.noAddresses')}</Text>}
             {adding ? (
               <View style={{ marginTop: spacing.md }}>
                 <AddressForm
@@ -96,39 +102,28 @@ export default function ClientProfileScreen() {
                 />
               </View>
             ) : (
-              <SettingsRow icon="add-circle" label="Adicionar endereço" color={colors.primary} onPress={() => setAdding(true)} />
+              <SettingsRow icon="add-circle" label={t('profile.addAddress')} color={colors.primary} onPress={() => setAdding(true)} />
             )}
           </Card>
         </FadeInView>
 
         <FadeInView delay={180}>
-          <Text style={styles.h}>Preferências</Text>
-          <Card>
-            <SettingsRow
-              icon="volume-high"
-              label="Efeitos sonoros"
-              toggle={{
-                value: soundOn,
-                onChange: (v) => {
-                  Sound.setEnabled(v);
-                  setSoundOn(v);
-                },
-              }}
-            />
-            <SettingsRow icon="notifications" label="Notificações" onPress={() => {}} />
-            <SettingsRow icon="help-circle" label="Ajuda" onPress={() => {}} />
-          </Card>
+          <Text style={styles.h}>{t('common.preferences')}</Text>
+          <PreferencesCard>
+            <SettingsRow icon="notifications" label={t('prefs.notifications')} onPress={() => {}} />
+            <SettingsRow icon="help-circle" label={t('prefs.help')} onPress={() => {}} />
+          </PreferencesCard>
         </FadeInView>
 
         <FadeInView delay={240}>
-          <DuoButton title="Sair" variant="outline" icon="log-out" onPress={signOut} style={{ marginTop: spacing.xl }} />
+          <DuoButton title={t('common.signOut')} variant="outline" icon="log-out" onPress={signOut} style={{ marginTop: spacing.xl }} />
         </FadeInView>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   head: { alignItems: 'center', marginVertical: spacing.lg },
   editBadge: {
@@ -140,7 +135,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: colors.primary,
     borderWidth: 3,
-    borderColor: colors.white,
+    borderColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -158,5 +153,5 @@ const styles = StyleSheet.create({
   },
   addrLabel: { fontSize: 15, fontWeight: '800', color: colors.text },
   addrText: { fontSize: 13, fontWeight: '600', color: colors.textMuted, marginTop: 2 },
-  trash: { width: 36, height: 36, borderRadius: radius.sm, backgroundColor: '#FFF1F3', alignItems: 'center', justifyContent: 'center' },
-});
+  trash: { width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.dangerLight, alignItems: 'center', justifyContent: 'center' },
+}));

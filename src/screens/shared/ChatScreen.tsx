@@ -3,13 +3,11 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,11 +17,10 @@ import { useApp } from '../../context/AppContext';
 import { useMessages } from '../../context/hooks';
 import { ChatMessage } from '../../types';
 import { RootScreenProps } from '../../navigation/types';
-import { colors, radius, spacing } from '../../theme';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t as tr, tList } from '../../i18n';
 import { feedback } from '../../services/feedback';
 import { formatChatTime } from '../../utils/format';
-
-const QUICK_REPLIES = ['Qual o valor final?', 'Precisa de algum material?', 'Tenho cachorro em casa 🐶', 'Combinado! 👍'];
 
 /** Bolha de mensagem que entra com um "pop" de mola. */
 function Bubble({ msg, mine }: { msg: ChatMessage; mine: boolean }) {
@@ -79,8 +76,8 @@ export default function ChatScreen({ route, navigation }: RootScreenProps<'Chat'
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Avatar uri={otherAvatar} size={30} />
           <View style={{ marginLeft: 8 }}>
-            <Text style={{ fontWeight: '800', fontSize: 16, color: colors.text }}>{otherName ?? 'Conversa'}</Text>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary }}>{isClient ? 'Prestador' : 'Cliente'}</Text>
+            <Text style={{ fontWeight: '800', fontSize: 16, color: colors.text }}>{otherName ?? tr('chat.conversation')}</Text>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary }}>{isClient ? tr('chat.provider') : tr('chat.client')}</Text>
           </View>
         </View>
       ),
@@ -109,7 +106,7 @@ export default function ChatScreen({ route, navigation }: RootScreenProps<'Chat'
   return (
     <KeyboardAvoidingView
       style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior="padding"
       keyboardVerticalOffset={headerHeight}
     >
       <FlatList
@@ -120,8 +117,8 @@ export default function ChatScreen({ route, navigation }: RootScreenProps<'Chat'
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
         ListHeaderComponent={
           <View style={styles.notice}>
-            <Ionicons name="shield-checkmark" size={16} color={colors.primaryDark} />
-            <Text style={styles.noticeText}>Combine os detalhes por aqui. Nunca pague fora do app.</Text>
+            <Ionicons name="shield-checkmark" size={16} color={colors.primaryText} />
+            <Text style={styles.noticeText}>{tr('chat.notice')}</Text>
           </View>
         }
         renderItem={({ item }) => <Bubble msg={item} mine={item.senderId === session?.uid} />}
@@ -130,7 +127,7 @@ export default function ChatScreen({ route, navigation }: RootScreenProps<'Chat'
       <View style={[styles.composer, { paddingBottom: insets.bottom + 8 }]}>
         <FlatList
           horizontal
-          data={QUICK_REPLIES}
+          data={tList('chat.quick')}
           keyExtractor={(q) => q}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: 8 }}
@@ -144,7 +141,7 @@ export default function ChatScreen({ route, navigation }: RootScreenProps<'Chat'
           <TextInput
             value={text}
             onChangeText={setText}
-            placeholder="Escreva uma mensagem…"
+            placeholder={tr('chat.placeholder')}
             placeholderTextColor={colors.textMuted}
             style={styles.input}
             onSubmitEditing={() => send(text)}
@@ -163,7 +160,7 @@ export default function ChatScreen({ route, navigation }: RootScreenProps<'Chat'
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   flex: { flex: 1, backgroundColor: colors.bg },
   notice: {
     flexDirection: 'row',
@@ -173,13 +170,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     marginBottom: spacing.lg,
   },
-  noticeText: { marginLeft: 8, fontSize: 12, fontWeight: '700', color: colors.primaryDark, flex: 1 },
+  noticeText: { marginLeft: 8, fontSize: 12, fontWeight: '700', color: colors.primaryText, flex: 1 },
   bubble: { maxWidth: '78%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 8 },
   mine: { alignSelf: 'flex-end', backgroundColor: colors.blue, borderBottomRightRadius: 4 },
-  theirs: { alignSelf: 'flex-start', backgroundColor: colors.white, borderWidth: 2, borderColor: colors.border, borderBottomLeftRadius: 4 },
+  theirs: { alignSelf: 'flex-start', backgroundColor: colors.card, borderWidth: 2, borderColor: colors.border, borderBottomLeftRadius: 4 },
   bubbleText: { fontSize: 15, fontWeight: '600', color: colors.text },
   bubbleTime: { fontSize: 10, fontWeight: '600', color: colors.textMuted, alignSelf: 'flex-end', marginTop: 4 },
-  composer: { backgroundColor: colors.white, borderTopWidth: 2, borderTopColor: colors.border, paddingTop: 10 },
+  composer: { backgroundColor: colors.card, borderTopWidth: 2, borderTopColor: colors.border, paddingTop: 10 },
   quick: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -189,7 +186,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
     backgroundColor: colors.blueLight,
   },
-  quickText: { fontWeight: '700', color: colors.blueDark, fontSize: 13 },
+  quickText: { fontWeight: '700', color: colors.blueText, fontSize: 13 },
   inputRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md },
   input: {
     flex: 1,
@@ -214,4 +211,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 8,
   },
-});
+}));

@@ -2,7 +2,9 @@
 
 **Agora vai! Trabalhe e encontre no seu tempo.**
 
-App que conecta quem precisa de um serviço a freelancers da região: motoboy e entregas, fretes, limpeza, reparos, jardinagem, beleza, pets, tecnologia e aulas particulares. Usa o **Firebase** (Authentication, Firestore e Storage) para contas, pedidos, avaliações, chat em tempo real e fotos.
+App que conecta quem precisa de um serviço a freelancers da região: motoboy e entregas, fretes, limpeza, reparos, jardinagem, beleza, pets, tecnologia e aulas particulares. Usa o **Firebase** (Authentication e Firestore) para contas, pedidos, avaliações, chat em tempo real e fotos. Funciona no plano gratuito (Spark).
+
+O app está em **português, inglês e espanhol** e tem **modo escuro**: os dois ficam em **Perfil → Preferências** (o idioma também pode ser trocado na tela de login). Na primeira abertura ele usa o idioma e o tema do celular.
 
 ### 🎨 Identidade visual
 
@@ -45,14 +47,13 @@ O app usa o SDK JavaScript do Firebase, que funciona no Expo Go (não precisa ge
 ### 1. No Console do Firebase (console.firebase.google.com)
 1. **Authentication → Método de login →** ative **E-mail/senha**.
 2. **Firestore Database → Criar banco de dados →** escolha `southamerica-east1` (São Paulo) e comece no **modo de produção**.
-3. **Storage → Começar** (exige o plano **Blaze**; tem cota gratuita e você só paga se passar dela).
-4. **Configurações do projeto → Seus apps → Web (`</>`) →** registre um app e copie o `firebaseConfig`.
+3. **Configurações do projeto → Seus apps → Web (`</>`) →** registre um app e copie o `firebaseConfig`.
 
 ### 2. No projeto
 1. Copie `.env.example` para `.env` e preencha com os valores do `firebaseConfig`.
 2. Publique as regras de segurança. Sem elas o app não consegue ler nem gravar nada.
-   - Pelo console: cole `firestore.rules` em **Firestore → Regras** e `storage.rules` em **Storage → Regras**.
-   - Ou pelo terminal: `npx firebase-tools login` e depois `npx firebase-tools deploy --only firestore,storage --project SEU_PROJECT_ID`.
+   - Pelo console: cole `firestore.rules` em **Firestore → Regras** e clique em **Publicar**.
+   - Ou pelo terminal: `npx firebase-tools login` e depois `npx firebase-tools deploy --only firestore --project SEU_PROJECT_ID`.
 3. Reinicie com `npx expo start --clear` (o `.env` só é lido quando o servidor inicia).
 
 ### Como os dados ficam organizados
@@ -65,14 +66,52 @@ O app usa o SDK JavaScript do Firebase, que funciona no Expo Go (não precisa ge
 | `busySlots/{prestador_data_hora}` | horários ocupados (o id único impede duas reservas no mesmo horário) | qualquer usuário logado |
 | `reviews/{bookingId}` | uma avaliação por pedido concluído | qualquer usuário logado |
 | `conversations/{cliente_prestador}/messages` | chat em tempo real | só os dois participantes |
-| Storage `users/{uid}/` | foto de perfil e fotos de antes/depois | qualquer usuário logado |
+| `payments/{pedido}` | cobrança do Asaas (QR Code Pix, link do cartão) | o cliente do pedido; só o servidor grava |
+| `providerBalances/{uid}` | comissões de serviços em dinheiro a descontar | o próprio prestador; só o servidor grava |
+| `providerAccounts/{uid}`, `asaasCustomers/{uid}` | ids internos do Asaas | só o servidor |
+| `photos/{uid_id}` | foto de perfil e fotos de antes/depois (JPEG reduzido no celular, em base64). Os perfis guardam só a referência `photo:{id}` | qualquer usuário logado |
+
+> As fotos não usam o Firebase Storage, que agora exige o plano Blaze. Elas são reduzidas no celular (512 px no perfil, 960 px no portfólio) e cabem com folga no limite de 1 MB de um documento do Firestore.
 
 Um prestador só aparece nas buscas quando está **online**, tem **pelo menos uma especialidade e um serviço** e, se as duas localizações forem conhecidas, quando o cliente está dentro do **raio de atendimento**. O Painel do prestador mostra o que falta.
 
-### Testando
-Crie duas contas pelo app (uma como **Quero trabalhar**, outra como **Quero contratar**). Dá para usar dois celulares, ou sair de uma conta e entrar na outra. No prestador, complete o perfil (especialidade, um serviço e a localização). No cliente, ele vai aparecer em **Explorar**: agende, converse pelo chat, aceite e conclua pelo prestador e avalie pelo cliente.
+### 💳 Pagamentos (Asaas + Cloud Functions)
 
-> O pagamento ainda é combinado direto com o prestador. A taxa exibida no checkout é só informativa.
+O app cobra por **Pix** e **cartão** pelo [Asaas](https://www.asaas.com). As chamadas ao Asaas ficam nas Cloud Functions (`functions/`); a chave de API nunca vai para o app.
+
+**Como o dinheiro anda**
+1. O prestador abre a **conta de recebimento** em Perfil → Pagamentos (cria uma subconta Asaas no nome dele). Sem ela, ele só recebe em dinheiro.
+2. O cliente agenda por Pix ou cartão e paga na tela de pagamento (QR Code / copia e cola, ou a página segura do Asaas para cartão). Sem pagamento em 30 minutos, o pedido é cancelado e o horário liberado.
+3. O webhook do Asaas confirma o pagamento; só então o prestador pode aceitar. Se ele recusar, ou o cliente cancelar, o valor é estornado.
+4. O serviço é concluído pelo prestador, pelo cliente ("Serviço feito") ou automaticamente 3 dias depois da data, se o cliente não reportar problema. Aí o valor do serviço é transferido para a subconta do prestador; a comissão (8%, mínimo de R$ 5) fica na conta principal da BoraLá.
+5. **Serviços em dinheiro:** a comissão vira débito do prestador e é descontada do próximo repasse por Pix ou cartão. Acima de R$ 50 de débito, ele só recebe pedidos pagos no app até o saldo baixar.
+
+Repasses que falharem (por exemplo, dinheiro de cartão ainda não liberado pelo Asaas) são tentados de novo a cada 6 horas. Pedidos com problema reportado ficam parados para análise manual no Console do Firebase.
+
+**Configurar**
+1. Crie a conta no Asaas (use o **sandbox** para testar) e gere a chave de API em Integrações.
+2. Cadastre os segredos e publique:
+   ```bash
+   npx firebase-tools functions:secrets:set ASAAS_API_KEY --project SEU_PROJECT_ID
+   npx firebase-tools functions:secrets:set ASAAS_WEBHOOK_TOKEN --project SEU_PROJECT_ID   # invente um token longo
+   npx firebase-tools deploy --only functions,firestore --project SEU_PROJECT_ID
+   ```
+   O deploy pergunta o valor de `ASAAS_ENV`: `sandbox` para testes, `production` para valer.
+3. No Asaas, em Integrações → Webhooks, cadastre a URL da função `asaasWebhook` (aparece no fim do deploy, algo como `https://southamerica-east1-SEU_PROJECT_ID.cloudfunctions.net/asaasWebhook`), com o mesmo token do `ASAAS_WEBHOOK_TOKEN`, e ative os eventos de cobrança.
+
+> Publique as regras, as funções e a nova versão do app juntas: as regras novas exigem campos que só a versão nova do app envia.
+
+**Testes**
+```bash
+cd functions
+npm test           # regras do saldo do prestador
+npm run test:e2e   # regras + funções no emulador do Firebase, com um Asaas falso (precisa de Java)
+```
+
+### Testando
+Crie duas contas pelo cadastro com o Mélo (uma em **Quero trabalhar**, outra em **Quero contratar**). Para ver o cadastro de novo no mesmo aparelho, toque em **Criar conta com o Mélo** na tela de login. Dá para usar dois celulares, ou sair de uma conta e entrar na outra. No prestador, complete o perfil (especialidade, um serviço e a localização). No cliente, ele vai aparecer em **Explorar**: agende, converse pelo chat, aceite e conclua pelo prestador e avalie pelo cliente.
+
+> A taxa da plataforma é 8% do serviço com mínimo de R$ 5. O cartão tem um acréscimo que cobre a tarifa do Asaas; o Pix não tem.
 
 ## 📂 Estrutura
 
@@ -103,17 +142,31 @@ jardimja/
     │   ├── TabIcon.tsx          # Ícone que "pula" ao ser selecionado
     │   └── types.ts             # Tipagem das rotas
     ├── screens/
+    │   ├── auth/OnboardingScreen.tsx  # Cadastro animado com o Mélo (trabalhar ou contratar)
     │   ├── auth/LoginScreen.tsx
     │   ├── client/   Home · ProviderDetails · Schedule · Checkout · BookingSuccess · Orders · Review · ClientProfile
     │   ├── provider/ Dashboard · Requests · ProviderSettings
     │   └── shared/   Conversations · Chat
     ├── services/feedback.ts    # Sons (expo-audio) + vibração (expo-haptics)
     ├── services/firebase.ts    # Inicialização do Firebase a partir do .env
-    ├── services/uploads.ts · pickImage.ts · geo.ts  # Fotos no Storage, seletor de imagem, distância
-    ├── theme/index.ts          # Cores, espaçamentos, raios
+    ├── services/photos.ts · pickImage.ts · geo.ts  # Fotos no Firestore, seletor de imagem, distância
+    ├── context/SettingsContext.tsx  # Idioma e tema escolhidos (salvos no aparelho)
+    ├── i18n/                   # Textos em pt.ts (referência), en.ts e es.ts
+    ├── theme/index.ts          # Paletas clara e escura, makeStyles, espaçamentos, raios
     ├── types/index.ts          # Modelos de domínio
     └── utils/format.ts         # Moeda (R$), datas
 ```
+
+## 🐶 Mélo, o mascote
+
+Na primeira vez que o app abre, um cadastro guiado mostra a marca e as categorias de serviço, e o **Mélo**, o assistente do app, conversa com a pessoa (balão com texto sendo digitado):
+
+- **Quero trabalhar:** nome completo → CPF, nascimento e celular → áreas de atuação → foto e bio → primeiro serviço (nome, preço, unidade e foto) → e-mail e senha.
+- **Quero contratar:** nome e celular → endereço (o CEP preenche a rua pela ViaCEP) → e-mail e senha.
+
+Nada é gravado até o último passo: aí a conta é criada, as fotos são salvas (reduzidas, na coleção `photos`) e o perfil (e o perfil público do prestador) é gravado de uma vez. No fim há uma comemoração com confete e o app abre. Se algum campo estiver errado, o Mélo explica no balão; tocar nele mostra uma dica.
+
+As poses ficam em `assets/melo/` (PNG com fundo transparente, recortadas da folha do personagem). Para trocar por versões melhores, substitua os arquivos mantendo os nomes; se a proporção mudar, atualize o `ratio` em `src/components/Melo.tsx`.
 
 ## ✨ Feedback "estilo Duolingo"
 
@@ -131,6 +184,5 @@ Os sons podem ser desligados em **Perfil → Efeitos sonoros**. Para trocar por 
 
 ## 🔜 Próximos passos sugeridos
 - Notificações push (expo-notifications + Cloud Functions) para novos pedidos e mensagens
-- Gateway de pagamento (Pix via Mercado Pago, Stripe etc.)
 - Mapa (`react-native-maps`) para ver os prestadores e o raio de atendimento
 - Login com Google/Apple (exige um development build, não roda no Expo Go)

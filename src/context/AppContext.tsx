@@ -12,7 +12,6 @@ import {
   collection,
   doc,
   getDoc,
-  increment,
   onSnapshot,
   query,
   runTransaction,
@@ -22,8 +21,10 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import {
+  Address,
   Booking,
   BookingStatus,
+  CategoryId,
   Conversation,
   GeoPoint,
   PaymentMethod,
@@ -34,7 +35,8 @@ import {
 } from '../types';
 import { defaultAvailability } from '../data/categories';
 import { fb, isFirebaseConfigured } from '../services/firebase';
-import { uploadUserImage } from '../services/uploads';
+import { savePhoto } from '../services/photos';
+import { t } from '../i18n';
 import { distanceKm, getCurrentPosition } from '../services/geo';
 import { requireOnline, useOnline } from '../services/network';
 import { clearOfflineSnapshot, loadOfflineSnapshot, saveOfflineSnapshot } from '../services/offlineCache';
@@ -47,7 +49,7 @@ interface Session {
   email: string;
 }
 
-type ProfilePatch = Partial<Pick<UserProfile, 'name' | 'phone' | 'avatar' | 'addresses'>>;
+type ProfilePatch = Partial<Pick<UserProfile, 'name' | 'phone' | 'avatar' | 'addresses' | 'cpf'>>;
 
 export interface NewBooking {
   provider: Provider;
@@ -57,7 +59,27 @@ export interface NewBooking {
   address: string;
   payment: PaymentMethod;
   price: number;
+  platformFee: number;
   notes?: string;
+}
+
+/** Tudo o que o cadastro com o Mélo coleta (veja screens/auth/OnboardingScreen). */
+export interface OnboardingData {
+  role: UserRole;
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+  cpf?: string;
+  birthDate?: string;
+  address?: Address;
+  provider?: {
+    bio: string;
+    categories: CategoryId[];
+    /** fotos escolhidas (data URI do pickImage); são salvas depois de criar a conta */
+    avatarUri?: string;
+    service: { title: string; price: number; unit: string; photoUri: string };
+  };
 }
 
 type ConversationParties = Pick<
@@ -71,15 +93,19 @@ interface AppContextValue {
   session: Session | null;
   profile: UserProfile | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (p: { role: UserRole; name: string; email: string; password: string }) => Promise<void>;
+  /** cria a conta, envia as fotos e grava perfil (e perfil de prestador) de uma vez */
+  completeSignUp: (d: OnboardingData) => Promise<{ photosFailed: boolean }>;
+  /** true do fim do cadastro até a pessoa sair da tela de comemoração do Mélo */
+  onboardingHold: boolean;
+  releaseOnboarding: () => void;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   /** troca a conta entre contratar (cliente) e divulgar serviços (prestador) */
   switchRole: (next: UserRole) => Promise<void>;
 
   updateProfile: (patch: ProfilePatch) => Promise<void>;
-  /** envia uma foto local para o Storage da conta e devolve a URL */
-  uploadImage: (name: string, localUri: string) => Promise<string>;
+  /** salva uma foto escolhida (data URI de `pickImage`) e devolve a referência para gravar no perfil */
+  uploadImage: (photo: string) => Promise<string>;
 
   myLocation: GeoPoint | null;
   refreshLocation: () => Promise<GeoPoint | null>;
@@ -92,6 +118,8 @@ interface AppContextValue {
   bookings: Booking[];
   createBooking: (b: NewBooking) => Promise<string>;
   setBookingStatus: (b: Booking, status: BookingStatus) => Promise<void>;
+  /** cliente reporta um problema: o pedido não é concluído automaticamente e o repasse fica parado */
+  reportProblem: (b: Booking) => Promise<void>;
 
   addReview: (b: Booking, rating: number, comment: string) => Promise<void>;
 
@@ -115,7 +143,7 @@ function onListenError(e: { code?: string }) {
   console.warn('[firestore]', e);
   if (e.code === 'permission-denied' && !warnedRules) {
     warnedRules = true;
-    Alert.alert('Sem permissão no banco', 'Publique as regras do arquivo firestore.rules no Console do Firebase.');
+    Alert.alert(t('rules.title'), t('rules.body'));
   }
 }
 
@@ -299,26 +327,68 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await signInWithEmailAndPassword(fb.auth, email.trim(), password);
   }, []);
 
-  const signUp = useCallback<AppContextValue['signUp']>(async ({ role: newRole, name, email, password }) => {
+  const [onboardingHold, setOnboardingHold] = useState(false);
+  const releaseOnboarding = useCallback(() => setOnboardingHold(false), []);
+
+  const completeSignUp = useCallback<AppContextValue['completeSignUp']>(async (d) => {
+    requireOnline();
     signingUp.current = true;
+    // segura a tela do Mélo mesmo depois que o perfil existir, para mostrar a comemoração
+    setOnboardingHold(true);
     try {
-      const cred = await createUserWithEmailAndPassword(fb.auth, email.trim(), password);
-      const id = cred.user.uid;
+      const email = d.email.trim();
+      // numa nova tentativa (ex.: a gravação falhou), o login com esse e-mail já pode existir
+      const current = fb.auth.currentUser;
+      const user =
+        current && current.email?.toLowerCase() === email.toLowerCase()
+          ? current
+          : (await createUserWithEmailAndPassword(fb.auth, email, d.password)).user;
+      const id = user.uid;
+
+      // fotos: se falharem, a conta é criada assim mesmo e a pessoa troca depois no perfil
+      let photosFailed = false;
+      // as fotos já vêm reduzidas do seletor (data URI) e são salvas na coleção "photos" do Firestore
+      const upload = async (uri?: string) => {
+        if (!uri) return '';
+        try {
+          return await savePhoto(id, uri);
+        } catch (e) {
+          console.warn('[cadastro] falha ao enviar foto', e);
+          photosFailed = true;
+          return '';
+        }
+      };
+      const [avatar, servicePhoto] = await Promise.all([
+        upload(d.provider?.avatarUri),
+        upload(d.provider?.service.photoUri),
+      ]);
+
       const now = Date.now();
       const batch = writeBatch(fb.db);
-      batch.set(doc(fb.db, 'users', id), { role: newRole, name, email: email.trim(), avatar: '', addresses: [], createdAt: now });
-      if (newRole === 'provider') {
+      batch.set(doc(fb.db, 'users', id), {
+        role: d.role,
+        name: d.name,
+        email,
+        phone: d.phone,
+        cpf: d.cpf,
+        birthDate: d.birthDate,
+        avatar,
+        addresses: d.address ? [d.address] : [],
+        createdAt: now,
+      });
+      if (d.role === 'provider' && d.provider) {
+        const { service } = d.provider;
         const provider: Omit<Provider, 'id' | 'distanceKm'> = {
-          name,
-          avatar: '',
-          bio: '',
-          categories: [],
+          name: d.name,
+          avatar,
+          bio: d.provider.bio,
+          categories: d.provider.categories,
           rating: 0,
           reviewsCount: 0,
-          basePrice: 0,
+          basePrice: service.price,
           radiusKm: 10,
           completedJobs: 0,
-          priceTable: [],
+          priceTable: [{ id: 's1', title: service.title, price: service.price, unit: service.unit, photo: servicePhoto || undefined }],
           portfolio: [],
           availability: defaultAvailability,
           online: true,
@@ -328,6 +398,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         batch.set(doc(fb.db, 'providers', id), provider);
       }
       await batch.commit();
+      return { photosFailed };
+    } catch (e) {
+      setOnboardingHold(false);
+      throw e;
     } finally {
       signingUp.current = false;
     }
@@ -381,9 +455,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const uploadImage = useCallback(
-    (name: string, localUri: string) => {
+    async (photo: string) => {
       if (!uid) throw new Error('Sem login');
-      return uploadUserImage(uid, name, localUri);
+      requireOnline();
+      return savePhoto(uid, photo);
     },
     [uid],
   );
@@ -429,7 +504,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!uid) return;
       requireOnline();
       // campos calculados ou controlados pelas avaliações nunca são gravados pelo dono
-      const { id: _id, distanceKm: _d, rating: _r, reviewsCount: _c, ...data } = patch;
+      const {
+        id: _id,
+        distanceKm: _d,
+        rating: _r,
+        reviewsCount: _c,
+        completedJobs: _j,
+        blockedForDebt: _b,
+        acceptsOnlinePayment: _o,
+        ...data
+      } = patch;
       await updateDoc(doc(fb.db, 'providers', uid), data);
     },
     [uid],
@@ -456,6 +540,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         address: b.address,
         payment: b.payment,
         price: b.price,
+        servicePrice: b.service.price,
+        platformFee: b.platformFee,
         status: 'pendente',
         reviewed: false,
         notes: b.notes,
@@ -482,12 +568,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       requireOnline();
       const batch = writeBatch(fb.db);
       batch.update(doc(fb.db, 'bookings', b.id), { status });
-      if (status === 'recusado') batch.delete(doc(fb.db, 'busySlots', `${b.providerId}_${b.date}_${b.time}`));
-      if (status === 'concluido') batch.update(doc(fb.db, 'providers', b.providerId), { completedJobs: increment(1) });
+      // recusado ou cancelado libera o horário; o estorno do Pix/cartão e o contador de serviços
+      // concluídos ficam com a Cloud Function onBookingUpdated
+      if (status === 'recusado' || status === 'cancelado') {
+        batch.delete(doc(fb.db, 'busySlots', `${b.providerId}_${b.date}_${b.time}`));
+      }
       await batch.commit();
     },
     [],
   );
+
+  const reportProblem = useCallback(async (b: Booking) => {
+    requireOnline();
+    await updateDoc(doc(fb.db, 'bookings', b.id), { disputed: true });
+  }, []);
 
   const addReview = useCallback(
     async (b: Booking, rating: number, comment: string) => {
@@ -554,11 +648,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AppContextValue>(
     () => ({
-      initializing: !authResolved || (!!uid && !profile),
+      // durante o cadastro com o Mélo a conta existe antes do perfil: não mostrar a tela de carregamento
+      // (ela desmontaria o cadastro e perderia o passo da comemoração)
+      initializing: !authResolved || (!!uid && !profile && !onboardingHold),
       session,
       profile,
       signIn,
-      signUp,
+      completeSignUp,
+      onboardingHold,
+      releaseOnboarding,
       resetPassword,
       signOut,
       switchRole,
@@ -573,6 +671,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       bookings,
       createBooking,
       setBookingStatus,
+      reportProblem,
       addReview,
       conversations,
       getOrCreateConversation,
@@ -588,7 +687,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       session,
       profile,
       signIn,
-      signUp,
+      completeSignUp,
+      onboardingHold,
+      releaseOnboarding,
       resetPassword,
       signOut,
       switchRole,
@@ -603,6 +704,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       bookings,
       createBooking,
       setBookingStatus,
+      reportProblem,
       addReview,
       conversations,
       getOrCreateConversation,

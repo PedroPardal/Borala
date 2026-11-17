@@ -17,13 +17,16 @@ export type ProviderTabParamList = {
 };
 
 export type RootStackParamList = {
+  Onboarding: undefined;
   Login: undefined;
   ClientTabs: NavigatorScreenParams<ClientTabParamList>;
   ProviderTabs: NavigatorScreenParams<ProviderTabParamList>;
   ProviderDetails: { providerId: string };
   Schedule: { providerId: string; serviceId: string };
   Checkout: { providerId: string; serviceId: string; date: string; time: string };
+  Payment: { bookingId: string };
   BookingSuccess: { bookingId: string; payment: PaymentMethod };
+  PayoutAccount: undefined;
   Chat: { conversationId: string };
   Review: { bookingId: string };
   EditProfile: undefined;

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import PressableScale from '../../components/PressableScale';
@@ -11,17 +11,16 @@ import { useApp } from '../../context/AppContext';
 import { useBusySlots } from '../../context/hooks';
 import { PriceItem, Provider } from '../../types';
 import { RootScreenProps } from '../../navigation/types';
-import { colors, radius, spacing } from '../../theme';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t, tList } from '../../i18n';
 import { formatDateLong, nextDays, toISODate, weekdayShort } from '../../utils/format';
-
-const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 export default function ScheduleScreen(props: RootScreenProps<'Schedule'>) {
   const { getProvider } = useApp();
   const provider = getProvider(props.route.params.providerId);
   const service = provider?.priceTable.find((s) => s.id === props.route.params.serviceId);
   if (!provider || !service) {
-    return <EmptyState icon="alert-circle-outline" title="Serviço indisponível" subtitle="O prestador alterou ou removeu esse serviço." />;
+    return <EmptyState icon="alert-circle-outline" title={t('common.serviceUnavailable')} subtitle={t('common.serviceUnavailableSub')} />;
   }
   return <Schedule {...props} provider={provider} service={service} />;
 }
@@ -52,12 +51,12 @@ function Schedule({ navigation, provider, service }: RootScreenProps<'Schedule'>
         <FadeInView style={styles.summary}>
           <Ionicons name="briefcase" size={20} color={colors.primary} />
           <Text style={styles.summaryText}>
-            {service.title} com <Text style={{ fontWeight: '900' }}>{provider.name.split(' ')[0]}</Text>
+            {service.title} {t('schedule.with')} <Text style={{ fontWeight: '900' }}>{provider.name.split(' ')[0]}</Text>
           </Text>
         </FadeInView>
 
         <FadeInView delay={60}>
-          <Text style={styles.h}>{MONTHS[date.getMonth()]}</Text>
+          <Text style={styles.h}>{tList('date.monthsLong')[date.getMonth()]}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {days.map((d) => {
               const available = slotsFor(d).length > 0;
@@ -87,9 +86,9 @@ function Schedule({ navigation, provider, service }: RootScreenProps<'Schedule'>
         </FadeInView>
 
         <FadeInView delay={120} key={iso}>
-          <Text style={styles.h}>Horários • {formatDateLong(iso)}</Text>
+          <Text style={styles.h}>{t('schedule.slots', { date: formatDateLong(iso) })}</Text>
           {slots.length === 0 ? (
-            <EmptyState icon="time-outline" title="Sem horários neste dia" subtitle="Escolha outra data no calendário acima." />
+            <EmptyState icon="time-outline" title={t('schedule.noSlots')} subtitle={t('schedule.noSlotsSub')} />
           ) : (
             <View style={styles.slots}>
               {slots.map((s) => {
@@ -106,14 +105,14 @@ function Schedule({ navigation, provider, service }: RootScreenProps<'Schedule'>
           )}
           <View style={styles.legend}>
             <Ionicons name="information-circle" size={16} color={colors.textMuted} />
-            <Text style={styles.legendText}>Horários riscados já estão reservados.</Text>
+            <Text style={styles.legendText}>{t('schedule.legend')}</Text>
           </View>
         </FadeInView>
       </ScrollView>
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 12 }]}>
         <DuoButton
-          title={time ? `Continuar • ${time}` : 'Escolha um horário'}
+          title={time ? t('schedule.continue', { time }) : t('schedule.pick')}
           disabled={!time}
           onPress={() =>
             time &&
@@ -125,7 +124,7 @@ function Schedule({ navigation, provider, service }: RootScreenProps<'Schedule'>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   flex: { flex: 1, backgroundColor: colors.bg },
   summary: {
     flexDirection: 'row',
@@ -142,7 +141,7 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
     alignItems: 'center',
     borderRadius: radius.md,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderWidth: 2,
     borderBottomWidth: 5,
     borderColor: colors.border,
@@ -172,8 +171,8 @@ const styles = StyleSheet.create({
     right: 0,
     padding: spacing.lg,
     paddingTop: 12,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderTopWidth: 2,
     borderTopColor: colors.border,
   },
-});
+}));
