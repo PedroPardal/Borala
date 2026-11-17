@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Pressable, Text, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,8 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DuoButton from '../../components/DuoButton';
 import TextField from '../../components/TextField';
 import FadeInView from '../../components/FadeInView';
-import Melo from '../../components/Melo';
-import { Wordmark } from '../../components/Logo';
+import { LogoMark, Wordmark } from '../../components/Logo';
 import { useApp } from '../../context/AppContext';
 import { RootScreenProps } from '../../navigation/types';
 import { colors, radius, spacing, makeStyles } from '../../theme';
@@ -17,13 +16,24 @@ import { firebaseErrorMessage } from '../../services/firebase';
 import { markOnboardingSeen } from '../../services/onboarding';
 import { LanguagePicker } from '../../components/PreferencesCard';
 
-/** Entrar numa conta existente. Contas novas são criadas no cadastro com o Mélo (OnboardingScreen). */
+/** Entrar numa conta existente. Contas novas são criadas no cadastro guiado (OnboardingScreen). */
 export default function LoginScreen({ navigation }: RootScreenProps<'Login'>) {
   const { signIn, resetPassword } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // logo "flutuando"
+  const float = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(float, { toValue: 1, duration: 1400, useNativeDriver: true }),
+        Animated.timing(float, { toValue: 0, duration: 1400, useNativeDriver: true }),
+      ]),
+    ).start();
+  }, [float]);
 
   // "tremida" ao errar
   const shake = useRef(new Animated.Value(0)).current;
@@ -67,10 +77,12 @@ export default function LoginScreen({ navigation }: RootScreenProps<'Login'>) {
     <SafeAreaView style={styles.safe}>
       <KeyboardAwareScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" bottomOffset={90}>
         <FadeInView style={styles.hero}>
-          <Melo pose="acenando" size={130} />
-          <Wordmark size={36} style={{ marginTop: 10 }} />
+          <Animated.View style={{ transform: [{ translateY: float.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }) }] }}>
+            <LogoMark size={96} style={styles.logo} />
+          </Animated.View>
+          <Wordmark size={40} style={{ marginTop: 14 }} />
           <Text style={styles.slogan}>{t('login.slogan')}</Text>
-          <Text style={styles.tagline}>{t('login.welcomeBack')}</Text>
+          <Text style={styles.tagline}>{t('login.tagline')}</Text>
         </FadeInView>
 
         <FadeInView delay={160}>
@@ -107,7 +119,7 @@ export default function LoginScreen({ navigation }: RootScreenProps<'Login'>) {
           </Pressable>
           <View style={styles.signup}>
             <Text style={styles.signupText}>{t('login.noAccount')}</Text>
-            <DuoButton title={t('login.signUpWithMelo')} variant="outline" icon="paw" onPress={() => navigation.navigate('Onboarding')} />
+            <DuoButton title={t('login.signUp')} variant="outline" icon="person-add" onPress={() => navigation.navigate('Onboarding')} />
           </View>
         </FadeInView>
 
@@ -133,6 +145,7 @@ const styles = makeStyles(() => ({
     borderBottomWidth: 6,
     borderBottomColor: colors.primary,
   },
+  logo: { borderWidth: 2, borderColor: colors.navyLight },
   slogan: { fontSize: 14, fontWeight: '900', color: colors.secondary, letterSpacing: 2, marginTop: 6 },
   tagline: { fontSize: 14, fontWeight: '600', color: '#CBD5E1', marginTop: 4, textAlign: 'center' },
   error: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.sm },

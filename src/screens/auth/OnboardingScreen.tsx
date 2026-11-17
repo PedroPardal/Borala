@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Melo, { MeloPose } from '../../components/Melo';
 import SpeechBubble from '../../components/SpeechBubble';
-import PawProgress from '../../components/PawProgress';
+import StepProgress from '../../components/StepProgress';
 import FloatingDecor from '../../components/FloatingDecor';
 import DuoButton from '../../components/DuoButton';
 import TextField from '../../components/TextField';
@@ -62,8 +62,8 @@ const FLOW: Record<Path, Step[]> = {
   client: ['c-name', 'c-address', 'account'],
 };
 
-/** Poses que são só o rosto (redondas): aparecem um pouco menores ao lado do balão. */
-const FACES: MeloPose[] = ['feliz', 'focado', 'curioso'];
+/** Categorias mostradas nas boas-vindas para deixar claro que o app é de serviços. */
+const WELCOME_CATEGORIES: CategoryId[] = ['entregas', 'limpeza', 'reparos', 'beleza', 'tecnologia'];
 
 /** Unidades e apelidos de endereço no idioma do app (são salvos no perfil como texto). */
 const units = () => tList('onb.units');
@@ -125,25 +125,25 @@ function meloFor(step: Step, path: Path | null, f: Form): { pose: MeloPose; text
   const name = firstName(f.name);
   switch (step) {
     case 'welcome':
-      return { pose: 'acenando', text: t('onb.say.welcome') };
+      return { pose: 'feliz', text: t('onb.say.welcome') };
     case 'choice':
-      return { pose: 'pensando', text: t('onb.say.choice') };
+      return { pose: 'feliz', text: t('onb.say.choice') };
     case 'p-name':
       return { pose: 'feliz', text: t('onb.say.pName') };
     case 'p-docs':
       return { pose: 'focado', text: t('onb.say.pDocs', { name }) };
     case 'p-skills':
-      return { pose: 'pensando', text: t('onb.say.pSkills') };
+      return { pose: 'feliz', text: t('onb.say.pSkills') };
     case 'p-bio':
       return { pose: 'feliz', text: t('onb.say.pBio') };
     case 'p-service':
-      return { pose: 'trabalhando', text: t('onb.say.pService') };
+      return { pose: 'focado', text: t('onb.say.pService') };
     case 'c-name':
-      return { pose: 'andando', text: t('onb.say.cName') };
+      return { pose: 'feliz', text: t('onb.say.cName') };
     case 'c-address':
       return { pose: 'feliz', text: t('onb.say.cAddress', { name }) };
     case 'account':
-      return { pose: 'atendendo', text: t('onb.say.account') };
+      return { pose: 'focado', text: t('onb.say.account') };
     case 'done':
       return { pose: 'comemorando', text: t(path === 'provider' ? 'onb.say.doneProvider' : 'onb.say.doneClient', { name }) };
   }
@@ -360,7 +360,6 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
   const bubbleText = error ?? chatter ?? melo.text;
   // errou algum campo: o Mélo faz cara de curioso
   const talkPose: MeloPose = error ? 'curioso' : melo.pose;
-  const bigMelo = Math.min(260, height * 0.32);
 
   // ---------- telas grandes: boas-vindas, escolha e comemoração ----------
 
@@ -369,20 +368,29 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
       <SafeAreaView style={styles.safe}>
         <FloatingDecor />
         <View style={styles.center}>
-          <FadeInView>
-            <Wordmark size={30} color={colors.text} />
+          <FadeInView style={{ alignItems: 'center' }}>
+            <Wordmark size={44} color={colors.text} />
+            <Text style={styles.slogan}>{t('login.slogan')}</Text>
+            <Text style={styles.tagline}>{t('login.tagline')}</Text>
           </FadeInView>
-          <View style={styles.stage}>
-            <SpeechBubble text={bubbleText} style={styles.bigBubble} />
-            <View style={styles.meloWrap}>
-              {/* círculo laranja clarinho atrás do Mélo (fica só atrás dele, não do balão) */}
-              <View style={[styles.halo, { width: bigMelo * 0.95, height: bigMelo * 0.95, borderRadius: bigMelo, top: bigMelo * 0.08 }]} />
-              <Melo pose={melo.pose} size={bigMelo} onPress={talk} />
-            </View>
+          <View style={styles.categoryStrip}>
+            {WELCOME_CATEGORIES.map((id, i) => {
+              const c = categories.find((x) => x.id === id);
+              if (!c) return null;
+              return (
+                <FadeInView key={id} delay={200 + i * 90} from={24} style={[styles.categoryIcon, { backgroundColor: `${c.color}1F` }]}>
+                  <Ionicons name={c.icon as keyof typeof Ionicons.glyphMap} size={26} color={c.color} />
+                </FadeInView>
+              );
+            })}
+          </View>
+          <View style={[styles.talkRow, { marginBottom: 0 }]}>
+            <Melo pose={melo.pose} size={72} onPress={talk} />
+            <SpeechBubble text={bubbleText} tail="left" style={styles.sideBubble} />
           </View>
         </View>
         <FadeInView delay={500} style={styles.footer}>
-          <DuoButton title={t('onb.start')} icon="paw" onPress={() => go('choice')} sound="success" />
+          <DuoButton title={t('onb.start')} icon="arrow-forward" onPress={() => go('choice')} sound="success" />
           <Pressable onPress={haveAccount} hitSlop={12}>
             <Text style={styles.link}>{t('onb.haveAccount')}</Text>
           </Pressable>
@@ -397,14 +405,14 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
         <FloatingDecor />
         <Header onBack={back} />
         <ScrollView contentContainerStyle={styles.scroll}>
-          <View style={styles.stage}>
-            <SpeechBubble text={bubbleText} style={styles.bigBubble} />
-            <Melo pose={melo.pose} size={Math.min(190, height * 0.24)} onPress={talk} />
+          <View style={styles.talkRow}>
+            <Melo pose={melo.pose} size={72} onPress={talk} />
+            <SpeechBubble text={bubbleText} tail="left" style={styles.sideBubble} />
           </View>
           <View style={styles.choices}>
             <ChoiceCard
               delay={350}
-              pose="trabalhando"
+              icon="construct"
               title={t('onb.work')}
               subtitle={t('onb.workSub')}
               color={colors.primary}
@@ -412,7 +420,7 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
             />
             <ChoiceCard
               delay={480}
-              pose="andando"
+              icon="search"
               title={t('onb.hire')}
               subtitle={t('onb.hireSub')}
               color={colors.blue}
@@ -433,7 +441,7 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
         <ScrollView contentContainerStyle={[styles.scroll, { flexGrow: 1, justifyContent: 'center' }]}>
           <View style={styles.stage}>
             <SpeechBubble text={bubbleText} style={styles.bigBubble} />
-            <Melo pose="comemorando" size={Math.min(230, height * 0.28)} onPress={talk} />
+            <Melo pose="comemorando" size={Math.min(170, height * 0.22)} onPress={talk} />
           </View>
           {path === 'provider' && (
             <FadeInView delay={700}>
@@ -477,7 +485,7 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <KeyboardAwareScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" bottomOffset={24}>
           <View style={styles.talkRow}>
-            <Melo pose={talkPose} size={FACES.includes(talkPose) ? 92 : 112} onPress={talk} />
+            <Melo pose={talkPose} size={72} onPress={talk} />
             <SpeechBubble text={bubbleText} tail="left" tone={error ? 'alert' : 'normal'} style={styles.sideBubble} />
           </View>
 
@@ -698,14 +706,14 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
   );
 }
 
-/** Voltar + patinhas de progresso. */
+/** Voltar + barra de progresso do cadastro. */
 function Header({ onBack, progress }: { onBack?: () => void; progress?: { total: number; current: number } }) {
   return (
     <View style={styles.header}>
       <PressableScale onPress={onBack} disabled={!onBack} style={[styles.backBtn, !onBack && { opacity: 0.4 }]} sound="none">
         <Ionicons name="chevron-back" size={22} color={colors.text} />
       </PressableScale>
-      {progress && <PawProgress total={progress.total} current={progress.current} />}
+      {progress ? <StepProgress total={progress.total} current={progress.current} /> : <View style={{ flex: 1 }} />}
       <View style={{ width: 40 }} />
     </View>
   );
@@ -730,14 +738,14 @@ function StepView({ dir, children }: { dir: 1 | -1; children: React.ReactNode })
 }
 
 function ChoiceCard({
-  pose,
+  icon,
   title,
   subtitle,
   color,
   delay,
   onPress,
 }: {
-  pose: MeloPose;
+  icon: keyof typeof Ionicons.glyphMap;
   title: string;
   subtitle: string;
   color: string;
@@ -747,8 +755,8 @@ function ChoiceCard({
   return (
     <FadeInView delay={delay} from={40} style={{ flex: 1 }}>
       <PressableScale onPress={onPress} sound="none" style={[styles.choice, { borderColor: color }]}>
-        <View style={[styles.choiceArt, { backgroundColor: `${color}14` }]}>
-          <Melo pose={pose} size={104} float={false} />
+        <View style={[styles.choiceIcon, { backgroundColor: color }]}>
+          <Ionicons name={icon} size={34} color={colors.white} />
         </View>
         <Text style={[styles.choiceTitle, { color }]}>{title}</Text>
         <Text style={styles.choiceSubtitle}>{subtitle}</Text>
@@ -794,8 +802,10 @@ const styles = makeStyles(() => ({
   scroll: { padding: spacing.xl, paddingTop: spacing.sm, paddingBottom: spacing.xxl },
   stage: { alignItems: 'center', marginTop: spacing.lg },
   bigBubble: { maxWidth: 340, marginBottom: spacing.lg },
-  meloWrap: { alignItems: 'center', justifyContent: 'center' },
-  halo: { position: 'absolute', backgroundColor: colors.primaryLight, alignSelf: 'center' },
+  slogan: { fontSize: 15, fontWeight: '900', color: colors.primary, letterSpacing: 2, marginTop: 6 },
+  tagline: { fontSize: 15, fontWeight: '600', color: colors.textMuted, marginTop: 6, textAlign: 'center' },
+  categoryStrip: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.xxl },
+  categoryIcon: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   footer: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.lg, gap: spacing.md },
   link: { textAlign: 'center', color: colors.blue, fontSize: 15, fontWeight: '800' },
   header: {
@@ -815,7 +825,7 @@ const styles = makeStyles(() => ({
     borderWidth: 2,
     borderColor: colors.border,
   },
-  talkRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xl, minHeight: 112 },
+  talkRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xl, minHeight: 80 },
   sideBubble: { flex: 1, marginLeft: spacing.md },
   choices: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
   choice: {
@@ -827,7 +837,7 @@ const styles = makeStyles(() => ({
     padding: spacing.md,
     alignItems: 'center',
   },
-  choiceArt: { width: '100%', alignItems: 'center', borderRadius: radius.md, paddingVertical: spacing.sm, marginBottom: spacing.md },
+  choiceIcon: { width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center', marginVertical: spacing.md },
   choiceTitle: { fontSize: 17, fontWeight: '900', textAlign: 'center' },
   choiceSubtitle: { fontSize: 12, fontWeight: '600', color: colors.textMuted, textAlign: 'center', marginTop: 4 },
   note: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: spacing.xs },

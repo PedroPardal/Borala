@@ -6,17 +6,17 @@ import { colors } from '../theme';
 const { width, height } = Dimensions.get('window');
 
 const ICONS: { name: keyof typeof Ionicons.glyphMap; color: string }[] = [
-  { name: 'paw', color: colors.primary },
-  { name: 'star', color: colors.star },
-  { name: 'settings', color: colors.blue },
-  { name: 'paw', color: colors.blue },
-  { name: 'star', color: colors.primary },
-  { name: 'chatbubble', color: colors.blue },
-  { name: 'paw', color: colors.star },
   { name: 'construct', color: colors.primary },
+  { name: 'star', color: colors.star },
+  { name: 'flash', color: colors.blue },
+  { name: 'location', color: colors.primary },
+  { name: 'calendar', color: colors.blue },
+  { name: 'chatbubble', color: colors.blue },
+  { name: 'sparkles', color: colors.star },
+  { name: 'briefcase', color: colors.primary },
 ];
 
-/** Ícones do universo do Mélo (patinhas, estrelas, ferramentas) flutuando bem de leve no fundo. */
+/** Ícones de serviços (ferramentas, agenda, localização, avaliação) flutuando bem de leve no fundo. */
 export default function FloatingDecor() {
   const items = useMemo(
     () =>
@@ -64,7 +64,7 @@ function Floater({ name, color, x, y, size, duration, rotate }: (typeof ICONS)[n
         position: 'absolute',
         left: x,
         top: y,
-        opacity: 0.16,
+        opacity: 0.12,
         transform: [
           { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, -14] }) },
           { rotate: v.interpolate({ inputRange: [0, 1], outputRange: [`${rotate}deg`, `${rotate + 18}deg`] }) },

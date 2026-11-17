@@ -159,12 +159,12 @@ jardimja/
 
 ## 🐶 Mélo, o mascote
 
-Na primeira vez que o app abre, o **Mélo** recebe a pessoa e conversa com ela (balão com texto sendo digitado) para fazer o cadastro:
+Na primeira vez que o app abre, um cadastro guiado mostra a marca e as categorias de serviço, e o **Mélo**, o assistente do app, conversa com a pessoa (balão com texto sendo digitado):
 
 - **Quero trabalhar:** nome completo → CPF, nascimento e celular → áreas de atuação → foto e bio → primeiro serviço (nome, preço, unidade e foto) → e-mail e senha.
 - **Quero contratar:** nome e celular → endereço (o CEP preenche a rua pela ViaCEP) → e-mail e senha.
 
-Nada é gravado até o último passo: aí a conta é criada, as fotos são salvas (reduzidas, na coleção `photos`) e o perfil (e o perfil público do prestador) é gravado de uma vez. O Mélo comemora com confete e o app abre. Se algum campo estiver errado, ele faz cara de curioso e explica no balão; tocar nele faz ele pular e falar alguma coisa.
+Nada é gravado até o último passo: aí a conta é criada, as fotos são salvas (reduzidas, na coleção `photos`) e o perfil (e o perfil público do prestador) é gravado de uma vez. No fim há uma comemoração com confete e o app abre. Se algum campo estiver errado, o Mélo explica no balão; tocar nele mostra uma dica.
 
 As poses ficam em `assets/melo/` (PNG com fundo transparente, recortadas da folha do personagem). Para trocar por versões melhores, substitua os arquivos mantendo os nomes; se a proporção mudar, atualize o `ratio` em `src/components/Melo.tsx`.
 
