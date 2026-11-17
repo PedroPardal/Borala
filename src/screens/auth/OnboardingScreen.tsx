@@ -32,7 +32,8 @@ import { OnboardingData, useApp } from '../../context/AppContext';
 import { RootScreenProps } from '../../navigation/types';
 import { categories } from '../../data/categories';
 import { CategoryId } from '../../types';
-import { colors, radius, spacing } from '../../theme';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t, TKey, tList } from '../../i18n';
 import { formatBRL } from '../../utils/format';
 import {
   ageFrom,
@@ -65,30 +66,10 @@ const FLOW: Record<Path, Step[]> = {
 /** Poses que são só o rosto (redondas): aparecem um pouco menores ao lado do balão. */
 const FACES: MeloPose[] = ['feliz', 'focado', 'curioso'];
 
-const UNITS = ['por serviço', 'por hora', 'por diária', 'por m²', 'por entrega'];
-const ADDRESS_LABELS = ['Casa', 'Trabalho', 'Outro'];
-
-const TITLE_HINT: Record<CategoryId, string> = {
-  entregas: 'Ex.: Entrega rápida no bairro',
-  fretes: 'Ex.: Frete pequeno (até 10 km)',
-  limpeza: 'Ex.: Faxina completa',
-  reparos: 'Ex.: Instalação de chuveiro',
-  jardinagem: 'Ex.: Corte de grama',
-  beleza: 'Ex.: Corte e escova',
-  pets: 'Ex.: Passeio de 1 hora',
-  tecnologia: 'Ex.: Formatação de computador',
-  aulas: 'Ex.: Aula de violão (1h)',
-};
-
-/** O que o Mélo diz quando tocam nele. */
-const CHATTER = [
-  'Au au! 🐾',
-  'Tô aqui pra te ajudar!',
-  'Esse boné é meu charme 🧢',
-  'Bora lá, falta pouquinho!',
-  'Hehe, faz cócegas!',
-  'Psiu… capricha nas fotos! 📸',
-];
+/** Unidades e apelidos de endereço no idioma do app (são salvos no perfil como texto). */
+const units = () => tList('onb.units');
+const addressLabels = () => tList('onb.addressLabels');
+const titleHint = (c?: CategoryId) => t(`onb.hint.${c ?? 'reparos'}` as TKey);
 
 interface Form {
   name: string;
@@ -124,7 +105,7 @@ const EMPTY: Form = {
   avatarUri: '',
   serviceTitle: '',
   servicePrice: '',
-  serviceUnit: UNITS[0],
+  serviceUnit: '',
   servicePhotoUri: '',
   cep: '',
   street: '',
@@ -133,7 +114,7 @@ const EMPTY: Form = {
   district: '',
   city: '',
   uf: '',
-  addressLabel: ADDRESS_LABELS[0],
+  addressLabel: '',
   email: '',
   password: '',
 };
@@ -142,35 +123,30 @@ const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? '';
 
 /** Pose e fala do Mélo em cada passo. */
 function meloFor(step: Step, path: Path | null, f: Form): { pose: MeloPose; text: string } {
-  const nome = firstName(f.name);
+  const name = firstName(f.name);
   switch (step) {
     case 'welcome':
-      return { pose: 'acenando', text: 'Oi! Eu sou o Mélo 🐾 Vou te ajudar a começar no BoraLá. Leva só uns minutinhos!' };
+      return { pose: 'acenando', text: t('onb.say.welcome') };
     case 'choice':
-      return { pose: 'pensando', text: 'Me conta: você quer trabalhar ou contratar serviços?' };
+      return { pose: 'pensando', text: t('onb.say.choice') };
     case 'p-name':
-      return { pose: 'feliz', text: 'Boa! Vamos montar seu perfil de profissional. Qual é o seu nome completo?' };
+      return { pose: 'feliz', text: t('onb.say.pName') };
     case 'p-docs':
-      return {
-        pose: 'focado',
-        text: `Prazer, ${nome}! Agora uns dados importantes. Eles ficam guardados com segurança e servem para você receber pelos serviços.`,
-      };
+      return { pose: 'focado', text: t('onb.say.pDocs', { name }) };
     case 'p-skills':
-      return { pose: 'pensando', text: 'Em que você manda bem? Pode escolher mais de uma área.' };
+      return { pose: 'pensando', text: t('onb.say.pSkills') };
     case 'p-bio':
-      return { pose: 'feliz', text: 'Capricha na apresentação! Perfis com foto e uma bio legal recebem mais pedidos.' };
+      return { pose: 'feliz', text: t('onb.say.pBio') };
     case 'p-service':
-      return { pose: 'trabalhando', text: 'Agora seu primeiro serviço! Dá um nome, o preço e uma foto do seu trabalho.' };
+      return { pose: 'trabalhando', text: t('onb.say.pService') };
     case 'c-name':
-      return { pose: 'andando', text: 'Bora encontrar quem resolve pra você! Como você se chama?' };
+      return { pose: 'andando', text: t('onb.say.cName') };
     case 'c-address':
-      return { pose: 'feliz', text: `Prazer, ${nome}! Onde você vai precisar dos serviços? Assim eu te mostro quem está pertinho.` };
+      return { pose: 'feliz', text: t('onb.say.cAddress', { name }) };
     case 'account':
-      return { pose: 'atendendo', text: 'Último passo! Crie seu acesso com e-mail e senha para entrar de qualquer celular.' };
+      return { pose: 'atendendo', text: t('onb.say.account') };
     case 'done':
-      return path === 'provider'
-        ? { pose: 'comemorando', text: `Uhuul, ${nome}! 🎉 Seu perfil já está no ar para clientes perto de você.` }
-        : { pose: 'comemorando', text: `Uhuul, ${nome}! 🎉 Agora é só escolher um serviço e agendar.` };
+      return { pose: 'comemorando', text: t(path === 'provider' ? 'onb.say.doneProvider' : 'onb.say.doneClient', { name }) };
   }
 }
 
@@ -178,38 +154,38 @@ function meloFor(step: Step, path: Path | null, f: Form): { pose: MeloPose; text
 function validate(step: Step, f: Form): string | null {
   switch (step) {
     case 'p-name':
-      return isFullName(f.name) ? null : 'Hmm, preciso do seu nome e sobrenome. 🙂';
+      return isFullName(f.name) ? null : t('onb.err.fullName');
     case 'c-name':
-      if (!isFullName(f.name)) return 'Hmm, preciso do seu nome e sobrenome. 🙂';
-      return isValidPhone(f.phone) ? null : 'Esse celular parece incompleto. Coloca com o DDD?';
+      if (!isFullName(f.name)) return t('onb.err.fullName');
+      return isValidPhone(f.phone) ? null : t('onb.err.phone');
     case 'p-docs': {
-      if (!isValidCPF(f.cpf)) return 'Esse CPF não confere. Dá uma olhadinha nos números?';
+      if (!isValidCPF(f.cpf)) return t('onb.err.cpf');
       const iso = parseDateBR(f.birth);
-      if (!iso || ageFrom(iso) > 110) return 'Essa data de nascimento não existe. Usa dia/mês/ano.';
-      if (ageFrom(iso) < 18) return 'Para trabalhar no BoraLá é preciso ter 18 anos ou mais.';
-      return isValidPhone(f.phone) ? null : 'Esse celular parece incompleto. Coloca com o DDD?';
+      if (!iso || ageFrom(iso) > 110) return t('onb.err.birth');
+      if (ageFrom(iso) < 18) return t('onb.err.underage');
+      return isValidPhone(f.phone) ? null : t('onb.err.phone');
     }
     case 'p-skills':
-      return f.categories.length > 0 ? null : 'Escolhe pelo menos uma área para eu te mostrar aos clientes certos!';
+      return f.categories.length > 0 ? null : t('onb.err.categories');
     case 'p-bio': {
       const missing = 20 - f.bio.trim().length;
-      return missing > 0 ? `Conta um pouquinho mais! Faltam ${missing} letras.` : null;
+      return missing > 0 ? t('onb.err.bioShort', { n: missing }) : null;
     }
     case 'p-service': {
-      if (f.serviceTitle.trim().length < 3) return 'Dá um nome para o seu serviço.';
+      if (f.serviceTitle.trim().length < 3) return t('onb.err.serviceTitle');
       const price = parsePriceBR(f.servicePrice);
-      if (!(price >= 5)) return 'Qual o preço? O mínimo é R$ 5,00.';
-      if (price > 50000) return 'Esse preço está alto demais. Confere o valor?';
-      return f.servicePhotoUri ? null : 'Falta a foto! Uma imagem do seu trabalho ajuda muito a fechar pedidos. 📸';
+      if (!(price >= 5)) return t('onb.err.priceMin');
+      if (price > 50000) return t('onb.err.priceMax');
+      return f.servicePhotoUri ? null : t('onb.err.servicePhoto');
     }
     case 'c-address':
-      if (f.cep && onlyDigits(f.cep).length !== 8) return 'O CEP tem 8 números. Confere?';
-      if (f.street.trim().length < 3) return 'Qual é a rua?';
-      if (!f.number.trim()) return 'Faltou o número. Se não tiver, coloca "s/n".';
-      return f.city.trim().length >= 2 ? null : 'Qual é a cidade?';
+      if (f.cep && onlyDigits(f.cep).length !== 8) return t('onb.err.cep');
+      if (f.street.trim().length < 3) return t('onb.err.street');
+      if (!f.number.trim()) return t('onb.err.number');
+      return f.city.trim().length >= 2 ? null : t('onb.err.city');
     case 'account':
-      if (!/^\S+@\S+\.\S+$/.test(f.email.trim())) return 'Esse e-mail não parece certo. Confere?';
-      return f.password.length >= 6 ? null : 'A senha precisa ter pelo menos 6 caracteres.';
+      if (!/^\S+@\S+\.\S+$/.test(f.email.trim())) return t('onb.err.email');
+      return f.password.length >= 6 ? null : t('onb.err.password');
     default:
       return null;
   }
@@ -224,7 +200,7 @@ function toData(path: Path, f: Form): OnboardingData {
     return {
       ...base,
       role: 'client',
-      address: { id: `a${Date.now()}`, label: f.addressLabel, street, city: f.uf ? `${f.city.trim()} - ${f.uf}` : f.city.trim() },
+      address: { id: `a${Date.now()}`, label: f.addressLabel || addressLabels()[0], street, city: f.uf ? `${f.city.trim()} - ${f.uf}` : f.city.trim() },
     };
   }
   return {
@@ -239,19 +215,19 @@ function toData(path: Path, f: Form): OnboardingData {
       service: {
         title: f.serviceTitle.trim(),
         price: parsePriceBR(f.servicePrice),
-        unit: f.serviceUnit,
+        unit: f.serviceUnit || units()[0],
         photoUri: f.servicePhotoUri,
       },
     },
   };
 }
 
-/** Pergunta se a foto vem da câmera ou da galeria. */
-function choosePhoto(aspect: [number, number], onPick: (uri: string) => void) {
-  Alert.alert('Escolher foto', undefined, [
-    { text: 'Tirar foto', onPress: () => pickImage('camera', aspect).then((u) => u && onPick(u)) },
-    { text: 'Da galeria', onPress: () => pickImage('gallery', aspect).then((u) => u && onPick(u)) },
-    { text: 'Cancelar', style: 'cancel' },
+/** Pergunta se a foto vem da câmera ou da galeria (o pickImage já devolve a foto reduzida). */
+function choosePhoto(aspect: [number, number], maxWidth: number, onPick: (uri: string) => void) {
+  Alert.alert(t('onb.photoTitle'), undefined, [
+    { text: t('onb.photoCamera'), onPress: () => pickImage('camera', aspect, maxWidth).then((u) => u && onPick(u)) },
+    { text: t('onb.photoGallery'), onPress: () => pickImage('gallery', aspect, maxWidth).then((u) => u && onPick(u)) },
+    { text: t('common.cancel'), style: 'cancel' },
   ]);
 }
 
@@ -273,7 +249,6 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
   const [saving, setSaving] = useState(false);
   const [photosFailed, setPhotosFailed] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
 
   const step = history[history.length - 1];
   const flow = path ? FLOW[path] : [];
@@ -333,7 +308,7 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
     }
     if (!path) return;
     setSaving(true);
-    setChatter('Preparando tudo pra você… ⏳');
+    setChatter(t('onb.say.saving'));
     try {
       const result = await completeSignUp(toData(path, f));
       setPhotosFailed(result.photosFailed);
@@ -366,7 +341,7 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
     setCepLoading(true);
     lookupCEP(d).then((addr) => {
       setCepLoading(false);
-      if (!addr) return setChatter('Não achei esse CEP. Pode digitar o endereço que eu espero. 🙂');
+      if (!addr) return setChatter(t('onb.say.cepNotFound'));
       feedback.select();
       setF((prev) => ({
         ...prev,
@@ -375,11 +350,14 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
         city: addr.city || prev.city,
         uf: addr.uf || prev.uf,
       }));
-      setChatter(addr.street ? 'Achei! Só falta o número. 🏠' : `Achei ${addr.city}! Completa a rua e o número?`);
+      setChatter(addr.street ? t('onb.say.cepFound') : t('onb.say.cepCity', { city: addr.city }));
     });
   }, [f.cep, step]);
 
-  const talk = () => setChatter(CHATTER[Math.floor(Math.random() * CHATTER.length)]);
+  const talk = () => {
+    const lines = tList('onb.chatter');
+    setChatter(lines[Math.floor(Math.random() * lines.length)]);
+  };
   const bubbleText = error ?? chatter ?? melo.text;
   // errou algum campo: o Mélo faz cara de curioso
   const talkPose: MeloPose = error ? 'curioso' : melo.pose;
@@ -393,7 +371,7 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
         <FloatingDecor />
         <View style={styles.center}>
           <FadeInView>
-            <Wordmark size={30} color={colors.navy} />
+            <Wordmark size={30} color={colors.text} />
           </FadeInView>
           <View style={styles.stage}>
             <SpeechBubble text={bubbleText} style={styles.bigBubble} />
@@ -405,9 +383,9 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
           </View>
         </View>
         <FadeInView delay={500} style={styles.footer}>
-          <DuoButton title="Bora começar!" icon="paw" onPress={() => go('choice')} sound="success" />
+          <DuoButton title={t('onb.start')} icon="paw" onPress={() => go('choice')} sound="success" />
           <Pressable onPress={haveAccount} hitSlop={12}>
-            <Text style={styles.link}>Já tenho conta</Text>
+            <Text style={styles.link}>{t('onb.haveAccount')}</Text>
           </Pressable>
         </FadeInView>
       </SafeAreaView>
@@ -428,16 +406,16 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
             <ChoiceCard
               delay={350}
               pose="trabalhando"
-              title="Quero trabalhar"
-              subtitle="Ofereça seus serviços e faça seus bicos no seu tempo"
+              title={t('onb.work')}
+              subtitle={t('onb.workSub')}
               color={colors.primary}
               onPress={() => choose('provider')}
             />
             <ChoiceCard
               delay={480}
               pose="andando"
-              title="Quero contratar"
-              subtitle="De entregas a reparos, tem gente perto de você"
+              title={t('onb.hire')}
+              subtitle={t('onb.hireSub')}
               color={colors.blue}
               onPress={() => choose('client')}
             />
@@ -477,17 +455,13 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
             <View style={styles.tip}>
               <Ionicons name="bulb" size={20} color={colors.star} />
               <Text style={styles.tipText}>
-                {photosFailed
-                  ? 'Não consegui enviar as fotos agora. Você pode colocar de novo no seu perfil.'
-                  : path === 'provider'
-                    ? 'Dica do Mélo: ative o recebimento por Pix e cartão em Perfil → Pagamentos. A maioria dos clientes prefere!'
-                    : 'Dica do Mélo: pague pelo Pix, é o jeito mais barato e o prestador confirma rapidinho.'}
+                {photosFailed ? t('onb.tipPhotosFailed') : path === 'provider' ? t('onb.tipProvider') : t('onb.tipClient')}
               </Text>
             </View>
           </FadeInView>
         </ScrollView>
         <FadeInView delay={1100} style={styles.footer}>
-          <DuoButton title={path === 'provider' ? 'Ver meu painel' : 'Explorar serviços'} icon="arrow-forward" onPress={finish} />
+          <DuoButton title={path === 'provider' ? t('onb.goDashboard') : t('onb.goExplore')} icon="arrow-forward" onPress={finish} />
         </FadeInView>
       </SafeAreaView>
     );
@@ -512,7 +486,7 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
                 <>
                   <TextField
                     icon="person"
-                    placeholder="Nome completo"
+                    placeholder={t('onb.fullName')}
                     autoCapitalize="words"
                     autoComplete="name"
                     textContentType="name"
@@ -524,7 +498,7 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
                   {step === 'c-name' && (
                     <TextField
                       icon="call"
-                      placeholder="Celular com DDD"
+                      placeholder={t('onb.phone')}
                       keyboardType="phone-pad"
                       autoComplete="tel"
                       value={f.phone}
@@ -536,17 +510,17 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
 
               {step === 'p-docs' && (
                 <>
-                  <TextField icon="id-card" placeholder="CPF" keyboardType="number-pad" value={f.cpf} onChangeText={(v) => set('cpf', maskCPF(v))} />
+                  <TextField icon="id-card" placeholder={t('onb.cpf')} keyboardType="number-pad" value={f.cpf} onChangeText={(v) => set('cpf', maskCPF(v))} />
                   <TextField
                     icon="calendar"
-                    placeholder="Data de nascimento (dd/mm/aaaa)"
+                    placeholder={t('onb.birth')}
                     keyboardType="number-pad"
                     value={f.birth}
                     onChangeText={(v) => set('birth', maskDate(v))}
                   />
                   <TextField
                     icon="call"
-                    placeholder="Celular com DDD"
+                    placeholder={t('onb.phone')}
                     keyboardType="phone-pad"
                     autoComplete="tel"
                     value={f.phone}
@@ -554,7 +528,7 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
                   />
                   <View style={styles.note}>
                     <Ionicons name="lock-closed" size={14} color={colors.textMuted} />
-                    <Text style={styles.noteText}>Só você vê esses dados. Clientes veem apenas seu nome, foto e bio.</Text>
+                    <Text style={styles.noteText}>{t('onb.privacy')}</Text>
                   </View>
                 </>
               )}
@@ -571,7 +545,7 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
               {step === 'p-bio' && (
                 <>
                   <View style={{ alignItems: 'center', marginBottom: spacing.lg }}>
-                    <PressableScale onPress={() => choosePhoto([1, 1], (u) => set('avatarUri', u))} style={styles.avatarPick}>
+                    <PressableScale onPress={() => choosePhoto([1, 1], 512, (u) => set('avatarUri', u))} style={styles.avatarPick}>
                       {f.avatarUri ? (
                         <Image source={{ uri: f.avatarUri }} style={styles.avatarImg} />
                       ) : (
@@ -581,12 +555,12 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
                         <Ionicons name="camera" size={16} color={colors.white} />
                       </View>
                     </PressableScale>
-                    <Text style={styles.noteText}>{f.avatarUri ? 'Ficou ótima! Toque para trocar.' : 'Sua foto de perfil (opcional)'}</Text>
+                    <Text style={styles.noteText}>{f.avatarUri ? t('onb.avatarDone') : t('onb.avatarHint')}</Text>
                   </View>
                   <TextInput
                     value={f.bio}
                     onChangeText={(v) => set('bio', v.slice(0, 300))}
-                    placeholder="Ex.: Sou eletricista há 8 anos, faço instalações e reparos com capricho e pontualidade."
+                    placeholder={t('onb.bioPh')}
                     placeholderTextColor={colors.textMuted}
                     multiline
                     style={styles.textarea}
@@ -599,42 +573,42 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
                 <>
                   <TextField
                     icon="construct"
-                    placeholder={TITLE_HINT[f.categories[0] ?? 'reparos']}
+                    placeholder={titleHint(f.categories[0])}
                     value={f.serviceTitle}
                     onChangeText={(v) => set('serviceTitle', v)}
                   />
                   <TextField
                     icon="cash"
-                    placeholder="Preço (R$)"
+                    placeholder={t('onb.price')}
                     keyboardType="decimal-pad"
                     value={f.servicePrice}
                     onChangeText={(v) => set('servicePrice', v.replace(/[^\d,]/g, ''))}
                   />
                   <View style={styles.chips}>
-                    {UNITS.map((u) => (
-                      <Chip key={u} label={u} selected={f.serviceUnit === u} onPress={() => set('serviceUnit', u)} />
+                    {units().map((u) => (
+                      <Chip key={u} label={u} selected={(f.serviceUnit || units()[0]) === u} onPress={() => set('serviceUnit', u)} />
                     ))}
                   </View>
-                  <PressableScale onPress={() => choosePhoto([4, 3], (u) => set('servicePhotoUri', u))} style={styles.photoBox}>
+                  <PressableScale onPress={() => choosePhoto([4, 3], 960, (u) => set('servicePhotoUri', u))} style={styles.photoBox}>
                     {f.servicePhotoUri ? (
                       <Image source={{ uri: f.servicePhotoUri }} style={StyleSheet.absoluteFill} />
                     ) : (
                       <>
                         <Ionicons name="images" size={36} color={colors.primary} />
-                        <Text style={styles.photoText}>Adicionar foto do serviço</Text>
-                        <Text style={styles.noteText}>Mostre um trabalho seu de verdade</Text>
+                        <Text style={styles.photoText}>{t('onb.addServicePhoto')}</Text>
+                        <Text style={styles.noteText}>{t('onb.addServicePhotoSub')}</Text>
                       </>
                     )}
                     {f.servicePhotoUri ? (
                       <View style={styles.photoChange}>
                         <Ionicons name="camera" size={14} color={colors.white} />
-                        <Text style={styles.photoChangeText}>Trocar</Text>
+                        <Text style={styles.photoChangeText}>{t('onb.change')}</Text>
                       </View>
                     ) : null}
                   </PressableScale>
                   <View style={styles.note}>
                     <Ionicons name="information-circle" size={14} color={colors.textMuted} />
-                    <Text style={styles.noteText}>Você recebe o valor que definir. A taxa da plataforma é cobrada à parte do cliente.</Text>
+                    <Text style={styles.noteText}>{t('onb.feeNote')}</Text>
                   </View>
                 </>
               )}
@@ -642,32 +616,32 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
               {step === 'c-address' && (
                 <>
                   <View style={styles.chips}>
-                    {ADDRESS_LABELS.map((l) => (
-                      <Chip key={l} label={l} selected={f.addressLabel === l} color={colors.blue} onPress={() => set('addressLabel', l)} />
+                    {addressLabels().map((l) => (
+                      <Chip key={l} label={l} selected={(f.addressLabel || addressLabels()[0]) === l} color={colors.blue} onPress={() => set('addressLabel', l)} />
                     ))}
                   </View>
                   <View>
-                    <TextField icon="location" placeholder="CEP" keyboardType="number-pad" value={f.cep} onChangeText={(v) => set('cep', maskCEP(v))} />
+                    <TextField icon="location" placeholder={t('onb.cep')} keyboardType="number-pad" value={f.cep} onChangeText={(v) => set('cep', maskCEP(v))} />
                     {cepLoading && <ActivityIndicator color={colors.blue} style={styles.cepSpinner} />}
                   </View>
-                  <TextField icon="home" placeholder="Rua" value={f.street} onChangeText={(v) => set('street', v)} />
+                  <TextField icon="home" placeholder={t('onb.street')} value={f.street} onChangeText={(v) => set('street', v)} />
                   <View style={styles.row}>
                     <View style={{ flex: 1, marginRight: spacing.sm }}>
-                      <TextField icon="keypad" placeholder="Número" value={f.number} onChangeText={(v) => set('number', v)} />
+                      <TextField icon="keypad" placeholder={t('onb.number')} value={f.number} onChangeText={(v) => set('number', v)} />
                     </View>
                     <View style={{ flex: 1.3 }}>
-                      <TextField icon="business" placeholder="Complemento" value={f.complement} onChangeText={(v) => set('complement', v)} />
+                      <TextField icon="business" placeholder={t('onb.complement')} value={f.complement} onChangeText={(v) => set('complement', v)} />
                     </View>
                   </View>
-                  <TextField icon="map" placeholder="Bairro" value={f.district} onChangeText={(v) => set('district', v)} />
+                  <TextField icon="map" placeholder={t('onb.district')} value={f.district} onChangeText={(v) => set('district', v)} />
                   <View style={styles.row}>
                     <View style={{ flex: 1, marginRight: spacing.sm }}>
-                      <TextField icon="navigate" placeholder="Cidade" value={f.city} onChangeText={(v) => set('city', v)} />
+                      <TextField icon="navigate" placeholder={t('onb.city')} value={f.city} onChangeText={(v) => set('city', v)} />
                     </View>
                     <View style={{ width: 96 }}>
                       <TextField
                         icon="flag"
-                        placeholder="UF"
+                        placeholder={t('onb.uf')}
                         autoCapitalize="characters"
                         maxLength={2}
                         value={f.uf}
@@ -682,31 +656,25 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
                 <>
                   <TextField
                     icon="mail"
-                    placeholder="E-mail"
+                    placeholder={t('onb.email')}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoComplete="email"
                     value={f.email}
                     onChangeText={(v) => set('email', v)}
                   />
-                  <View>
-                    <TextField
-                      icon="lock-closed"
-                      placeholder="Crie uma senha"
-                      secureTextEntry={!showPassword}
-                      autoComplete="new-password"
-                      value={f.password}
-                      onChangeText={(v) => set('password', v)}
-                      onSubmitEditing={next}
-                      style={{ paddingRight: 40 }}
-                    />
-                    <Pressable onPress={() => setShowPassword((s) => !s)} hitSlop={10} style={styles.eye}>
-                      <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color={colors.textMuted} />
-                    </Pressable>
-                  </View>
-                  <Text style={[styles.noteText, { textAlign: 'left' }]}>A senha precisa ter pelo menos 6 caracteres.</Text>
+                  <TextField
+                    icon="lock-closed"
+                    placeholder={t('onb.password')}
+                    secureTextEntry
+                    autoComplete="new-password"
+                    value={f.password}
+                    onChangeText={(v) => set('password', v)}
+                    onSubmitEditing={next}
+                  />
+                  <Text style={[styles.noteText, { textAlign: 'left' }]}>{t('onb.passwordHint')}</Text>
                   <Pressable onPress={haveAccount} hitSlop={10}>
-                    <Text style={[styles.link, { marginTop: spacing.lg }]}>Já tenho conta</Text>
+                    <Text style={[styles.link, { marginTop: spacing.lg }]}>{t('onb.haveAccount')}</Text>
                   </Pressable>
                 </>
               )}
@@ -716,7 +684,7 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
 
         <View style={styles.footer}>
           <DuoButton
-            title={step === 'account' ? 'Criar minha conta' : 'Continuar'}
+            title={step === 'account' ? t('onb.createAccount') : t('onb.continue')}
             icon={step === 'account' ? 'checkmark-circle' : 'arrow-forward'}
             variant={path === 'client' ? 'blue' : 'primary'}
             loading={saving}
@@ -819,7 +787,7 @@ function CategoryGrid({ selected, onToggle }: { selected: CategoryId[]; onToggle
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
   scroll: { padding: spacing.xl, paddingTop: spacing.sm, paddingBottom: spacing.xxl },
@@ -842,7 +810,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderWidth: 2,
     borderColor: colors.border,
   },
@@ -851,7 +819,7 @@ const styles = StyleSheet.create({
   choices: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
   choice: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderWidth: 2,
     borderBottomWidth: 6,
     borderRadius: radius.lg,
@@ -866,7 +834,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -spacing.xs },
   gridCell: { width: '33.333%', padding: spacing.xs },
   tile: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderWidth: 2,
     borderBottomWidth: 5,
     borderColor: colors.border,
@@ -885,7 +853,7 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -893,7 +861,7 @@ const styles = StyleSheet.create({
     width: 112,
     height: 112,
     borderRadius: 56,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderWidth: 3,
     borderColor: colors.primary,
     borderStyle: 'dashed',
@@ -917,7 +885,7 @@ const styles = StyleSheet.create({
   },
   textarea: {
     minHeight: 120,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.border,
@@ -959,12 +927,11 @@ const styles = StyleSheet.create({
   photoChangeText: { color: colors.white, fontWeight: '800', fontSize: 12 },
   row: { flexDirection: 'row' },
   cepSpinner: { position: 'absolute', right: 16, top: 17 },
-  eye: { position: 'absolute', right: 16, top: 17 },
   preview: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.lg,
     borderWidth: 2,
     borderBottomWidth: 5,
@@ -985,4 +952,4 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   tipText: { flex: 1, fontSize: 13, fontWeight: '700', color: colors.text },
-});
+}));

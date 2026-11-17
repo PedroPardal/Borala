@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Card from './Card';
 import DuoButton from './DuoButton';
 import PressableScale from './PressableScale';
 import { PriceItem } from '../types';
-import { colors, radius, spacing } from '../theme';
+import { colors, radius, spacing, makeStyles } from '../theme';
+import { t } from '../i18n';
 import { feedback } from '../services/feedback';
 
 /** Rascunho com o preço como texto, para o campo aceitar "45,50" enquanto digita. */
@@ -26,7 +27,7 @@ export default function PriceTableEditor({ items, onSave }: { items: PriceItem[]
 
   const add = () => {
     feedback.select();
-    setDraft((prev) => [...prev, { id: `s${Date.now()}`, title: '', unit: 'por serviço', price: '' }]);
+    setDraft((prev) => [...prev, { id: `s${Date.now()}`, title: '', unit: t('price.unitDefault'), price: '' }]);
   };
 
   const remove = (id: string) => {
@@ -40,7 +41,13 @@ export default function PriceTableEditor({ items, onSave }: { items: PriceItem[]
     if (invalid) return feedback.error();
     // a foto do serviço (do cadastro) é mantida ao editar nome e preço
     onSave(
-      draft.map((d) => ({ id: d.id, title: d.title.trim(), unit: d.unit.trim() || 'por serviço', price: parsePrice(d.price), photo: d.photo })),
+      draft.map((d) => ({
+        id: d.id,
+        title: d.title.trim(),
+        unit: d.unit.trim() || t('price.unitDefault'),
+        price: parsePrice(d.price),
+        photo: d.photo,
+      })),
     );
     feedback.success();
   };
@@ -55,7 +62,7 @@ export default function PriceTableEditor({ items, onSave }: { items: PriceItem[]
               <TextInput
                 value={d.title}
                 onChangeText={(title) => patch(d.id, { title })}
-                placeholder="Nome do serviço"
+                placeholder={t('price.namePh')}
                 placeholderTextColor={colors.textMuted}
                 style={[styles.input, styles.title]}
               />
@@ -74,7 +81,7 @@ export default function PriceTableEditor({ items, onSave }: { items: PriceItem[]
                 <TextInput
                   value={d.unit}
                   onChangeText={(unit) => patch(d.id, { unit })}
-                  placeholder="por hora"
+                  placeholder={t('price.unitPh')}
                   placeholderTextColor={colors.textMuted}
                   style={[styles.input, { flex: 1 }]}
                 />
@@ -89,15 +96,15 @@ export default function PriceTableEditor({ items, onSave }: { items: PriceItem[]
 
       <PressableScale style={styles.add} onPress={add} sound="none">
         <Ionicons name="add-circle" size={20} color={colors.primary} />
-        <Text style={styles.addText}>Adicionar serviço</Text>
+        <Text style={styles.addText}>{t('price.add')}</Text>
       </PressableScale>
 
-      {dirty && <DuoButton title="Salvar tabela" icon="checkmark" small onPress={save} sound="none" style={{ marginTop: spacing.md }} />}
+      {dirty && <DuoButton title={t('price.save')} icon="checkmark" small onPress={save} sound="none" style={{ marginTop: spacing.md }} />}
     </Card>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   item: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -121,8 +128,8 @@ const styles = StyleSheet.create({
   title: { fontWeight: '800' },
   priceBox: { width: 110, flexDirection: 'row', alignItems: 'center' },
   currency: { fontWeight: '800', color: colors.textMuted, marginRight: 4 },
-  priceInput: { flex: 1, fontSize: 14, fontWeight: '800', color: colors.primaryDark, padding: 0 },
-  trash: { width: 36, height: 36, borderRadius: radius.sm, backgroundColor: '#FFF1F3', alignItems: 'center', justifyContent: 'center' },
+  priceInput: { flex: 1, fontSize: 14, fontWeight: '800', color: colors.primaryText, padding: 0 },
+  trash: { width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.dangerLight, alignItems: 'center', justifyContent: 'center' },
   add: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingTop: spacing.md },
   addText: { fontSize: 15, fontWeight: '800', color: colors.primary },
-});
+}));

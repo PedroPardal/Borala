@@ -47,7 +47,7 @@ export default function TabIcon({ name, focused, badge }: { name: IconBase; focu
             height: 18,
             borderRadius: 9,
             borderWidth: 2,
-            borderColor: colors.white,
+            borderColor: colors.card,
             backgroundColor: colors.danger,
             alignItems: 'center',
             justifyContent: 'center',

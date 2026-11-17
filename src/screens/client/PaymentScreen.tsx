@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -10,7 +10,8 @@ import FadeInView from '../../components/FadeInView';
 import { useApp } from '../../context/AppContext';
 import { RootScreenProps } from '../../navigation/types';
 import { PaymentView } from '../../types';
-import { colors, radius, spacing } from '../../theme';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t } from '../../i18n';
 import { formatBRL, formatDateLong } from '../../utils/format';
 import { feedback } from '../../services/feedback';
 import { firebaseErrorMessage } from '../../services/firebase';
@@ -53,14 +54,14 @@ export default function PaymentScreen({ route, navigation }: RootScreenProps<'Pa
     });
   }, [paid, booking, navigation]);
 
-  if (!booking) return <EmptyState icon="alert-circle-outline" title="Pedido não encontrado" />;
+  if (!booking) return <EmptyState icon="alert-circle-outline" title={t('payment.notFound')} />;
 
   if (booking.status === 'cancelado' || booking.status === 'recusado') {
     return (
       <EmptyState
         icon="close-circle-outline"
-        title="Pedido cancelado"
-        subtitle={booking.cancelledBy === 'sem_pagamento' ? 'O prazo de 30 minutos para pagar terminou. Faça um novo pedido.' : undefined}
+        title={t('payment.canceled')}
+        subtitle={booking.cancelledBy === 'sem_pagamento' ? t('payment.expired') : undefined}
       />
     );
   }
@@ -74,15 +75,15 @@ export default function PaymentScreen({ route, navigation }: RootScreenProps<'Pa
   };
 
   const cancel = () =>
-    Alert.alert('Cancelar pedido?', 'O horário fica livre para outra pessoa.', [
-      { text: 'Voltar', style: 'cancel' },
+    Alert.alert(t('orders.cancelTitle'), t('orders.cancelFree'), [
+      { text: t('orders.back'), style: 'cancel' },
       {
-        text: 'Cancelar pedido',
+        text: t('orders.cancelConfirm'),
         style: 'destructive',
         onPress: () =>
           setBookingStatus(booking, 'cancelado')
             .then(() => navigation.goBack())
-            .catch((e) => Alert.alert('Não foi possível cancelar', firebaseErrorMessage(e))),
+            .catch((e) => Alert.alert(t('payment.cancelFailed'), firebaseErrorMessage(e))),
       },
     ]);
 
@@ -104,18 +105,18 @@ export default function PaymentScreen({ route, navigation }: RootScreenProps<'Pa
         {error ? (
           <Card style={{ marginTop: spacing.lg }}>
             <Text style={styles.errorText}>{error}</Text>
-            <DuoButton title="Tentar de novo" icon="refresh" small style={{ marginTop: spacing.md }} onPress={load} />
+            <DuoButton title={t('payment.retry')} icon="refresh" small style={{ marginTop: spacing.md }} onPress={load} />
           </Card>
         ) : !payment ? (
           <View style={styles.loading}>
             <ActivityIndicator color={colors.primary} />
-            <Text style={styles.muted}>Gerando a cobrança…</Text>
+            <Text style={styles.muted}>{t('payment.creating')}</Text>
           </View>
         ) : isPix ? (
           <FadeInView delay={80}>
             <Card style={[styles.center, { marginTop: spacing.lg }]}>
-              <Text style={styles.h}>Pague com Pix</Text>
-              <Text style={[styles.muted, styles.centerText]}>Abra o app do seu banco, escolha Pix e leia o QR Code ou cole o código.</Text>
+              <Text style={styles.h}>{t('payment.pixTitle')}</Text>
+              <Text style={[styles.muted, styles.centerText]}>{t('payment.pixHow')}</Text>
               {payment.pixImage ? (
                 <Image source={{ uri: `data:image/png;base64,${payment.pixImage}` }} style={styles.qr} resizeMode="contain" />
               ) : null}
@@ -123,7 +124,7 @@ export default function PaymentScreen({ route, navigation }: RootScreenProps<'Pa
                 {payment.pixPayload}
               </Text>
               <DuoButton
-                title={copied ? 'Código copiado!' : 'Copiar código Pix'}
+                title={copied ? t('payment.copied') : t('payment.copy')}
                 icon={copied ? 'checkmark' : 'copy'}
                 style={{ alignSelf: 'stretch', marginTop: spacing.md }}
                 onPress={copy}
@@ -135,12 +136,12 @@ export default function PaymentScreen({ route, navigation }: RootScreenProps<'Pa
           <FadeInView delay={80}>
             <Card style={[styles.center, { marginTop: spacing.lg }]}>
               <Ionicons name="card" size={40} color={colors.blue} />
-              <Text style={styles.h}>Pague com cartão</Text>
+              <Text style={styles.h}>{t('payment.cardTitle')}</Text>
               <Text style={[styles.muted, styles.centerText]}>
-                O pagamento é feito na página segura do Asaas. Depois de pagar, volte para o app.
+                {t('payment.cardHow')}
               </Text>
               <DuoButton
-                title="Abrir página de pagamento"
+                title={t('payment.openCard')}
                 icon="open"
                 style={{ alignSelf: 'stretch', marginTop: spacing.md }}
                 onPress={() => Linking.openURL(payment.invoiceUrl)}
@@ -152,22 +153,22 @@ export default function PaymentScreen({ route, navigation }: RootScreenProps<'Pa
         {payment && !error && (
           <View style={styles.waiting}>
             <ActivityIndicator color={colors.primary} size="small" />
-            <Text style={styles.muted}>Aguardando a confirmação do pagamento…</Text>
+            <Text style={styles.muted}>{t('payment.waiting')}</Text>
           </View>
         )}
         <Text style={[styles.muted, styles.centerText, { marginTop: spacing.md }]}>
-          Se o pagamento não for feito em 30 minutos, o pedido é cancelado. Se o prestador recusar, o valor é devolvido.
+          {t('payment.rules')}
         </Text>
       </ScrollView>
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 12 }]}>
-        <DuoButton title="Cancelar pedido" variant="outline" onPress={cancel} />
+        <DuoButton title={t('orders.cancelConfirm')} variant="outline" onPress={cancel} />
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   flex: { flex: 1, backgroundColor: colors.bg },
   bold: { fontSize: 16, fontWeight: '800', color: colors.text },
   muted: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
@@ -195,8 +196,8 @@ const styles = StyleSheet.create({
     right: 0,
     padding: spacing.lg,
     paddingTop: 12,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderTopWidth: 2,
     borderTopColor: colors.border,
   },
-});
+}));

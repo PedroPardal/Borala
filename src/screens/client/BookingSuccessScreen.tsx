@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Confetti from '../../components/Confetti';
@@ -8,8 +8,9 @@ import Card from '../../components/Card';
 import FadeInView from '../../components/FadeInView';
 import { useApp } from '../../context/AppContext';
 import { RootScreenProps } from '../../navigation/types';
-import { colors, spacing } from '../../theme';
-import { formatBRL, formatDateLong } from '../../utils/format';
+import { colors, spacing, makeStyles } from '../../theme';
+import { t, TKey } from '../../i18n';
+import { formatBRL, formatDateAt } from '../../utils/format';
 import { feedback } from '../../services/feedback';
 
 export default function BookingSuccessScreen({ route, navigation }: RootScreenProps<'BookingSuccess'>) {
@@ -52,24 +53,22 @@ export default function BookingSuccessScreen({ route, navigation }: RootScreenPr
         </Animated.View>
 
         <FadeInView delay={350}>
-          <Text style={styles.title}>Pedido enviado!</Text>
-          <Text style={styles.subtitle}>
-            {booking.providerName.split(' ')[0]} vai confirmar em breve. Acompanhe o status em Pedidos.
-          </Text>
+          <Text style={styles.title}>{t('success.title')}</Text>
+          <Text style={styles.subtitle}>{t('success.sub', { name: booking.providerName.split(' ')[0] })}</Text>
         </FadeInView>
 
         <FadeInView delay={500} style={{ alignSelf: 'stretch' }}>
           <Card style={{ marginTop: spacing.xl }}>
-            <Line icon="briefcase"text={booking.serviceTitle} />
-            <Line icon="calendar" text={`${formatDateLong(booking.date)} às ${booking.time}`} />
+            <Line icon="briefcase" text={booking.serviceTitle} />
+            <Line icon="calendar" text={formatDateAt(booking.date, booking.time)} />
             <Line icon="location" text={booking.address} />
-            <Line icon="wallet" text={`${formatBRL(booking.price)} • ${route.params.payment.toUpperCase()}`} />
+            <Line icon="wallet" text={`${formatBRL(booking.price)} • ${t(`pay.${route.params.payment}` as TKey)}`} />
           </Card>
         </FadeInView>
       </View>
 
       <FadeInView delay={650} style={styles.bottom}>
-        <DuoButton title="Ver meus pedidos" onPress={() => navigation.goBack()} />
+        <DuoButton title={t('success.cta')} onPress={() => navigation.goBack()} />
       </FadeInView>
     </SafeAreaView>
   );
@@ -84,8 +83,8 @@ function Line({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: stri
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.white },
+const styles = makeStyles(() => ({
+  safe: { flex: 1, backgroundColor: colors.card },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   badge: {
     width: 120,
@@ -98,9 +97,9 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.primaryDark,
     marginBottom: spacing.xl,
   },
-  title: { fontSize: 30, fontWeight: '900', color: colors.primaryDark, textAlign: 'center' },
+  title: { fontSize: 30, fontWeight: '900', color: colors.primaryText, textAlign: 'center' },
   subtitle: { fontSize: 15, fontWeight: '600', color: colors.textMuted, textAlign: 'center', marginTop: 8, lineHeight: 22 },
   line: { flexDirection: 'row', alignItems: 'center', marginVertical: 5 },
   lineText: { marginLeft: 10, fontSize: 15, fontWeight: '700', color: colors.text, flex: 1 },
   bottom: { padding: spacing.lg },
-});
+}));

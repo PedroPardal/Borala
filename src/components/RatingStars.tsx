@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme';
+import { colors, makeStyles } from '../theme';
 import { feedback } from '../services/feedback';
 
 interface Props {
@@ -67,8 +67,8 @@ export default function RatingStars({ rating, size = 14, showValue, count, onCha
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   row: { flexDirection: 'row', alignItems: 'center' },
   value: { marginLeft: 6, fontWeight: '800', color: colors.text },
   count: { fontWeight: '500', color: colors.textMuted },
-});
+}));

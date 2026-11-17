@@ -1,8 +1,8 @@
 import React from 'react';
-import { StyleSheet, Switch, Text, View } from 'react-native';
+import { Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import PressableScale from './PressableScale';
-import { colors, spacing } from '../theme';
+import { colors, spacing, makeStyles } from '../theme';
 import { feedback } from '../services/feedback';
 
 interface Props {
@@ -45,8 +45,8 @@ export default function SettingsRow({ icon, label, value, color = colors.text, o
   return <View style={styles.row}>{content}</View>;
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
   label: { flex: 1, fontSize: 15, fontWeight: '700' },
   value: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
-});
+}));

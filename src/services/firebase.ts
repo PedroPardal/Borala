@@ -2,8 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
 import { Auth, getAuth, getReactNativePersistence, initializeAuth } from 'firebase/auth';
 import { Firestore, initializeFirestore } from 'firebase/firestore';
-import { FirebaseStorage, getStorage } from 'firebase/storage';
 import { Functions, getFunctions } from 'firebase/functions';
+import { t, TKey } from '../i18n';
 
 // Preenchido pelo .env (veja .env.example). O Expo só embute variáveis com prefixo EXPO_PUBLIC_.
 const config = {
@@ -20,7 +20,6 @@ export const isFirebaseConfigured = Object.values(config).every((v) => typeof v 
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
-let storage: FirebaseStorage | undefined;
 let functions: Functions | undefined;
 
 if (isFirebaseConfigured) {
@@ -30,7 +29,6 @@ if (isFirebaseConfigured) {
   auth = isFirstInit ? initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) }) : getAuth(app);
   // long polling evita travamentos do canal de streaming do Firestore no React Native
   db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true, ignoreUndefinedProperties: true });
-  storage = getStorage(app);
   // mesma região das Cloud Functions (functions/src/admin.ts)
   functions = getFunctions(app, 'southamerica-east1');
 }
@@ -45,39 +43,26 @@ export const fb = {
     if (!db) throw new Error('Firebase não configurado');
     return db;
   },
-  get storage() {
-    if (!storage) throw new Error('Firebase não configurado');
-    return storage;
-  },
   get functions() {
     if (!functions) throw new Error('Firebase não configurado');
     return functions;
   },
 };
 
-/** Mensagens de erro do Firebase em português, para mostrar ao usuário. */
+// códigos que têm a mesma mensagem de outro
+const ALIASES: Record<string, string> = {
+  'auth/wrong-password': 'auth/invalid-credential',
+};
+
+/** Mensagem de erro do Firebase (ou das fotos) no idioma do app, para mostrar ao usuário. */
 export function firebaseErrorMessage(e: unknown): string {
-  const code = typeof e === 'object' && e && 'code' in e ? String((e as { code: string }).code) : '';
-  const map: Record<string, string> = {
-    'auth/invalid-email': 'E-mail inválido.',
-    'auth/invalid-credential': 'E-mail ou senha incorretos.',
-    'auth/wrong-password': 'E-mail ou senha incorretos.',
-    'auth/user-not-found': 'Não existe conta com esse e-mail.',
-    'auth/email-already-in-use': 'Já existe uma conta com esse e-mail.',
-    'auth/weak-password': 'A senha precisa ter pelo menos 6 caracteres.',
-    'auth/too-many-requests': 'Muitas tentativas. Espere um pouco e tente de novo.',
-    'auth/network-request-failed': 'Sem conexão com a internet.',
-    // projeto sem o Authentication iniciado ou sem o login por e-mail ativado no console
-    'auth/configuration-not-found': 'O login ainda não foi ativado no Firebase (Authentication > Começar).',
-    'auth/operation-not-allowed': 'O login por e-mail/senha está desativado no Firebase.',
-    'permission-denied': 'Você não tem permissão para fazer isso.',
-    unavailable: 'Servidor indisponível. Verifique sua internet.',
-    'app/offline': 'Você está sem internet. Conecte-se para fazer isso.',
-    'storage/unauthorized': 'Sem permissão para enviar a foto.',
-    'storage/retry-limit-exceeded': 'A conexão caiu durante o envio da foto.',
-  };
-  if (map[code]) return map[code];
-  // erros das Cloud Functions (functions/...) já vêm com a mensagem em português
-  if (code.startsWith('functions/') && e instanceof Error && e.message && code !== 'functions/internal') return e.message;
-  return 'Algo deu errado. Tente de novo.';
+  const raw = typeof e === 'object' && e && 'code' in e ? String((e as { code: string }).code) : '';
+  const code = ALIASES[raw] ?? raw;
+  const key = `err.${code}` as TKey;
+  const msg = code ? t(key) : '';
+  if (msg && msg !== key) return msg;
+  // erros das Cloud Functions de pagamento já trazem a explicação (em português) na mensagem
+  if (raw.startsWith('functions/') && raw !== 'functions/internal' && e instanceof Error && e.message) return e.message;
+  // mostra o código para facilitar descobrir o problema
+  return raw ? t('err.withCode', { code: raw }) : t('err.generic');
 }

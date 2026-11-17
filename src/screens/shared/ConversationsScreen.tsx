@@ -1,5 +1,5 @@
 import React from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -9,7 +9,8 @@ import FadeInView from '../../components/FadeInView';
 import EmptyState from '../../components/EmptyState';
 import { useApp } from '../../context/AppContext';
 import { RootStackParamList } from '../../navigation/types';
-import { colors, radius, spacing } from '../../theme';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t } from '../../i18n';
 import { formatChatTime } from '../../utils/format';
 
 export default function ConversationsScreen() {
@@ -19,7 +20,7 @@ export default function ConversationsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <Text style={styles.title}>Mensagens</Text>
+      <Text style={styles.title}>{t('conv.title')}</Text>
       <FlatList
         data={conversations}
         keyExtractor={(c) => c.id}
@@ -27,8 +28,8 @@ export default function ConversationsScreen() {
         ListEmptyComponent={
           <EmptyState
             icon="chatbubbles-outline"
-            title="Nenhuma conversa"
-            subtitle={isClient ? 'Inicie um chat pelo perfil de um prestador.' : 'Os clientes podem te chamar pelo seu perfil.'}
+            title={t('conv.empty')}
+            subtitle={isClient ? t('conv.emptyClient') : t('conv.emptyProvider')}
           />
         }
         renderItem={({ item, index }) => {
@@ -44,7 +45,7 @@ export default function ConversationsScreen() {
                 <View style={{ flex: 1, marginLeft: spacing.md }}>
                   <Text style={styles.name}>{name}</Text>
                   <Text style={[styles.preview, fromOther && { color: colors.text, fontWeight: '700' }]} numberOfLines={1}>
-                    {last ? last.text : 'Diga olá 👋'}
+                    {last ? last.text : t('conv.sayHi')}
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
@@ -60,13 +61,13 @@ export default function ConversationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   title: { fontSize: 26, fontWeight: '900', color: colors.text, padding: spacing.lg },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.lg,
     borderWidth: 2,
     borderBottomWidth: 4,
@@ -78,4 +79,4 @@ const styles = StyleSheet.create({
   preview: { fontSize: 14, fontWeight: '500', color: colors.textMuted, marginTop: 2 },
   time: { fontSize: 12, fontWeight: '600', color: colors.textMuted },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.blue, marginTop: 6 },
-});
+}));

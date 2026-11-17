@@ -1,8 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { cardStyle } from './Card';
-import { colors } from '../theme';
+import { colors, makeStyles } from '../theme';
 
 interface Props {
   label: string;
@@ -25,9 +25,9 @@ export default function StatCard({ label, value, icon, color }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  card: { ...cardStyle, flex: 1, padding: 14 },
+const styles = makeStyles(() => ({
+  card: { ...cardStyle(), flex: 1, padding: 14 },
   icon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   value: { fontSize: 20, fontWeight: '800', color: colors.text },
   label: { fontSize: 12, fontWeight: '600', color: colors.textMuted, marginTop: 2 },
-});
+}));

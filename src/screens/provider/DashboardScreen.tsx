@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -19,8 +19,9 @@ import { useProviderBalance } from '../../context/hooks';
 import { DEBT_LIMIT } from '../../utils/pricing';
 import { ProviderTabParamList } from '../../navigation/types';
 import { Provider } from '../../types';
-import { colors, radius, spacing } from '../../theme';
-import { formatBRL, parseISODate, toISODate, weekdayShort } from '../../utils/format';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t } from '../../i18n';
+import { formatBRL, formatDateNumeric, parseISODate, toISODate, weekdayShort } from '../../utils/format';
 import { feedback } from '../../services/feedback';
 
 type Period = 'week' | 'month';
@@ -40,11 +41,11 @@ export default function DashboardScreen() {
 /** O que falta para o prestador aparecer nas buscas dos clientes. */
 function profileChecklist(me: Provider) {
   return [
-    { done: !!me.avatar, label: 'Adicione uma foto' },
-    { done: me.bio.trim().length >= 20, label: 'Escreva sua bio' },
-    { done: me.categories.length > 0, label: 'Escolha suas especialidades', required: true },
-    { done: me.priceTable.length > 0, label: 'Cadastre pelo menos um serviço', required: true },
-    { done: !!me.location, label: 'Defina sua localização' },
+    { done: !!me.avatar, label: t('dash.addPhoto') },
+    { done: (me.bio ?? '').trim().length > 0, label: t('dash.writeBio') },
+    { done: me.categories.length > 0, label: t('dash.pickCategories'), required: true },
+    { done: me.priceTable.length > 0, label: t('dash.addService'), required: true },
+    { done: !!me.location, label: t('dash.setLocation') },
   ];
 }
 
@@ -87,7 +88,7 @@ function Dashboard({ me }: { me: Provider }) {
         d.setDate(today.getDate() - ((3 - w) * 7 + (6 - k)));
         sum += daily.get(toISODate(d)) ?? 0;
       }
-      return { label: `Sem ${w + 1}`, value: sum };
+      return { label: t('dash.weekShort', { n: w + 1 }), value: sum };
     });
   }, [period, daily]);
 
@@ -101,9 +102,9 @@ function Dashboard({ me }: { me: Provider }) {
         <FadeInView style={styles.head}>
           <Avatar uri={me.avatar} size={48} />
           <View style={{ flex: 1, marginLeft: spacing.md }}>
-            <Text style={styles.hello}>Olá, {me.name.split(' ')[0]}!</Text>
+            <Text style={styles.hello}>{t('dash.hello', { name: me.name.split(' ')[0] })}</Text>
             <Text style={[styles.status, { color: online ? colors.primary : colors.textMuted }]}>
-              ● {online ? 'Disponível para novos serviços' : 'Offline'}
+              ● {online ? t('dash.available') : t('dash.offline')}
             </Text>
           </View>
           <Switch
@@ -122,7 +123,7 @@ function Dashboard({ me }: { me: Provider }) {
           <Card style={styles.earnings}>
             <View style={styles.earnHead}>
               <View>
-                <Text style={styles.earnLabel}>Ganhos {period === 'week' ? 'da semana' : 'do mês'}</Text>
+                <Text style={styles.earnLabel}>{period === 'week' ? t('dash.earningsWeek') : t('dash.earningsMonth')}</Text>
                 <Text style={styles.earnValue}>{formatBRL(total)}</Text>
               </View>
               <View style={styles.segment}>
@@ -135,7 +136,7 @@ function Dashboard({ me }: { me: Provider }) {
                     }}
                     style={[styles.segItem, period === p && styles.segActive]}
                   >
-                    <Text style={[styles.segText, period === p && { color: colors.primary }]}>{p === 'week' ? 'Semana' : 'Mês'}</Text>
+                    <Text style={[styles.segText, period === p && { color: colors.primary }]}>{p === 'week' ? t('dash.week') : t('dash.month')}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -145,19 +146,19 @@ function Dashboard({ me }: { me: Provider }) {
         </FadeInView>
 
         <FadeInView delay={120} style={styles.stats}>
-          <StatCard label="Ganhos totais" value={formatBRL(allTime)} icon="cash" color={colors.primary} />
-          <StatCard label="Agendados" value={`${upcoming.length}`} icon="calendar" color={colors.blue} />
-          <StatCard label="Avaliação" value={me.reviewsCount ? me.rating.toFixed(1) : '—'} icon="star" color={colors.star} />
+          <StatCard label={t('dash.totalEarnings')} value={formatBRL(allTime)} icon="cash" color={colors.primary} />
+          <StatCard label={t('dash.scheduled')} value={`${upcoming.length}`} icon="calendar" color={colors.blue} />
+          <StatCard label={t('dash.rating')} value={me.reviewsCount ? me.rating.toFixed(1) : '—'} icon="star" color={colors.star} />
         </FadeInView>
 
         {!me.acceptsOnlinePayment && (
           <FadeInView delay={130}>
             <PressableScale style={styles.setup} onPress={() => navigation.getParent()?.navigate('PayoutAccount')}>
-              <Text style={styles.setupTitle}>Receba por Pix e cartão</Text>
+              <Text style={styles.setupTitle}>{t('dash.payoutTitle')}</Text>
               <Text style={styles.setupText}>
-                A maioria dos clientes prefere pagar pelo app. Abra sua conta de recebimento em 2 minutos.
+                {t('dash.payoutSub')}
               </Text>
-              <Text style={styles.setupLink}>Ativar agora →</Text>
+              <Text style={styles.setupLink}>{t('dash.payoutCta')}</Text>
             </PressableScale>
           </FadeInView>
         )}
@@ -167,18 +168,18 @@ function Dashboard({ me }: { me: Provider }) {
             <Card style={[styles.debt, me.blockedForDebt && styles.debtBlocked]}>
               <View style={styles.debtHead}>
                 <Ionicons name={me.blockedForDebt ? 'alert-circle' : 'receipt'} size={22} color={me.blockedForDebt ? colors.danger : colors.primary} />
-                <Text style={styles.debtTitle}>Comissões a descontar</Text>
+                <Text style={styles.debtTitle}>{t('dash.debtTitle')}</Text>
                 <Text style={styles.debtValue}>{formatBRL(debt)}</Text>
               </View>
               <Text style={styles.debtText}>
                 {me.blockedForDebt
-                  ? `As comissões passaram de ${formatBRL(DEBT_LIMIT)}, então os clientes só podem te contratar por Pix ou cartão. O pagamento em dinheiro volta quando o saldo for descontado de um desses serviços.`
-                  : `É a taxa da plataforma dos serviços pagos em dinheiro. Ela é descontada automaticamente do próximo serviço pago por Pix ou cartão. Acima de ${formatBRL(DEBT_LIMIT)}, você deixa de receber pedidos em dinheiro até o saldo baixar.`}
+                  ? t('dash.debtBlocked', { limit: formatBRL(DEBT_LIMIT) })
+                  : t('dash.debtInfo', { limit: formatBRL(DEBT_LIMIT) })}
               </Text>
               {entries.slice(0, 3).map((e) => (
                 <View key={e.id} style={styles.debtRow}>
                   <Text style={styles.debtRowLabel} numberOfLines={1}>
-                    {e.type === 'comissao_dinheiro' ? 'Comissão' : 'Descontado'} • {e.serviceTitle}
+                    {e.type === 'comissao_dinheiro' ? t('dash.debtCommission') : t('dash.debtDeducted')} • {e.serviceTitle}
                   </Text>
                   <Text style={[styles.debtRowValue, { color: e.amount > 0 ? colors.danger : colors.success }]}>
                     {e.amount > 0 ? '+' : '−'}
@@ -196,7 +197,7 @@ function Dashboard({ me }: { me: Provider }) {
           <FadeInView delay={150}>
             <PressableScale style={styles.setup} onPress={() => navigation.navigate('ProviderSettings')}>
               <Text style={styles.setupTitle}>
-                {hidden ? 'Seu perfil ainda não aparece nas buscas' : 'Deixe seu perfil mais completo'}
+                {hidden ? t('dash.hidden') : t('dash.incomplete')}
               </Text>
               {checklist.map((c) => (
                 <View key={c.label} style={styles.setupRow}>
@@ -207,11 +208,11 @@ function Dashboard({ me }: { me: Provider }) {
                   />
                   <Text style={[styles.setupText, c.done && styles.setupDone]}>
                     {c.label}
-                    {c.required && !c.done ? ' (obrigatório)' : ''}
+                    {c.required && !c.done ? t('dash.required') : ''}
                   </Text>
                 </View>
               ))}
-              <Text style={styles.setupLink}>Completar no Perfil →</Text>
+              <Text style={styles.setupLink}>{t('dash.complete')}</Text>
             </PressableScale>
           </FadeInView>
         )}
@@ -224,26 +225,26 @@ function Dashboard({ me }: { me: Provider }) {
               </View>
               <View style={{ flex: 1, marginLeft: spacing.md }}>
                 <Text style={styles.alertTitle}>
-                  {pending.length} nova{pending.length > 1 ? 's' : ''} solicitaç{pending.length > 1 ? 'ões' : 'ão'}
+                  {t(pending.length > 1 ? 'dash.newRequestsOther' : 'dash.newRequestsOne', { n: pending.length })}
                 </Text>
-                <Text style={styles.alertSub}>Responda rápido para subir no ranking ⚡</Text>
+                <Text style={styles.alertSub}>{t('dash.respondFast')}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={22} color={colors.navy} />
+              <Ionicons name="chevron-forward" size={22} color={colors.text} />
             </PressableScale>
           </FadeInView>
         )}
 
         <FadeInView delay={240}>
-          <Text style={styles.h}>Próximos serviços</Text>
+          <Text style={styles.h}>{t('dash.upcoming')}</Text>
           {upcoming.length === 0 ? (
-            <EmptyState icon="calendar-outline" title="Nada agendado" subtitle="Aceite solicitações para preencher sua agenda." />
+            <EmptyState icon="calendar-outline" title={t('dash.nothing')} subtitle={t('dash.nothingSub')} />
           ) : (
             upcoming.map((b) => <RequestCard key={b.id} booking={b} title={b.clientName} avatar={b.clientAvatar} forProvider />)
           )}
         </FadeInView>
 
         <FadeInView delay={300}>
-          <Text style={styles.h}>Histórico</Text>
+          <Text style={styles.h}>{t('dash.history')}</Text>
           {[...completed]
             .sort((a, b) => b.date.localeCompare(a.date))
             .map((b) => (
@@ -252,7 +253,7 @@ function Dashboard({ me }: { me: Provider }) {
                 <View style={{ flex: 1, marginLeft: spacing.md }}>
                   <Text style={styles.histTitle}>{b.serviceTitle}</Text>
                   <Text style={styles.histSub}>
-                    {b.clientName} • {parseISODate(b.date).toLocaleDateString('pt-BR')}
+                    {b.clientName} • {formatDateNumeric(parseISODate(b.date))}
                   </Text>
                 </View>
                 <Text style={styles.histValue}>+{formatBRL(b.price)}</Text>
@@ -264,7 +265,7 @@ function Dashboard({ me }: { me: Provider }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   debt: { marginTop: spacing.lg, borderColor: colors.primary },
   debtBlocked: { borderColor: colors.danger },
   debtHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
@@ -284,7 +285,7 @@ const styles = StyleSheet.create({
   earnValue: { fontSize: 28, fontWeight: '900', color: colors.text, marginTop: 2 },
   segment: { flexDirection: 'row', backgroundColor: colors.border, borderRadius: radius.sm, padding: 3 },
   segItem: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 },
-  segActive: { backgroundColor: colors.white },
+  segActive: { backgroundColor: colors.card },
   segText: { fontWeight: '800', fontSize: 12, color: colors.textMuted },
   stats: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   alert: {
@@ -316,11 +317,11 @@ const styles = StyleSheet.create({
   setupRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   setupText: { fontSize: 14, fontWeight: '700', color: colors.text },
   setupDone: { color: colors.textMuted, textDecorationLine: 'line-through' },
-  setupLink: { fontSize: 14, fontWeight: '900', color: colors.primaryDark, marginTop: 4 },
+  setupLink: { fontSize: 14, fontWeight: '900', color: colors.primaryText, marginTop: 4 },
   history: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.border,
@@ -329,5 +330,5 @@ const styles = StyleSheet.create({
   },
   histTitle: { fontWeight: '800', color: colors.text },
   histSub: { fontSize: 12, fontWeight: '600', color: colors.textMuted, marginTop: 2 },
-  histValue: { fontWeight: '900', color: colors.primaryDark },
-});
+  histValue: { fontWeight: '900', color: colors.primaryText },
+}));

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Avatar from '../../components/Avatar';
@@ -12,18 +13,19 @@ import EmptyState from '../../components/EmptyState';
 import { useApp } from '../../context/AppContext';
 import { PaymentMethod, PriceItem, Provider } from '../../types';
 import { RootScreenProps } from '../../navigation/types';
-import { colors, radius, spacing } from '../../theme';
-import { formatBRL, formatDateLong } from '../../utils/format';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t } from '../../i18n';
+import { formatBRL, formatDateAt } from '../../utils/format';
 import { MIN_PLATFORM_FEE, priceFor } from '../../utils/pricing';
 import { feedback } from '../../services/feedback';
 import { firebaseErrorMessage } from '../../services/firebase';
 
 const PIX_COLOR = '#32BCAD';
 
-const METHODS: { id: PaymentMethod; label: string; desc: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
-  { id: 'pix', label: 'Pix', desc: 'Instantâneo, sem acréscimo', icon: 'flash', color: PIX_COLOR },
-  { id: 'cartao', label: 'Cartão', desc: 'Crédito ou débito', icon: 'card', color: colors.blue },
-  { id: 'dinheiro', label: 'Dinheiro', desc: 'Pague ao prestador', icon: 'cash', color: colors.primary },
+const allMethods = (): { id: PaymentMethod; label: string; desc: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] => [
+  { id: 'pix', label: t('pay.pix'), desc: t('pay.pixNoFee'), icon: 'flash', color: PIX_COLOR },
+  { id: 'cartao', label: t('pay.cartao'), desc: t('pay.cartaoDesc'), icon: 'card', color: colors.blue },
+  { id: 'dinheiro', label: t('pay.dinheiro'), desc: t('pay.dinheiroDesc'), icon: 'cash', color: colors.primary },
 ];
 
 export default function CheckoutScreen(props: RootScreenProps<'Checkout'>) {
@@ -31,7 +33,7 @@ export default function CheckoutScreen(props: RootScreenProps<'Checkout'>) {
   const provider = getProvider(props.route.params.providerId);
   const service = provider?.priceTable.find((s) => s.id === props.route.params.serviceId);
   if (!provider || !service) {
-    return <EmptyState icon="alert-circle-outline" title="Serviço indisponível" subtitle="O prestador alterou ou removeu esse serviço." />;
+    return <EmptyState icon="alert-circle-outline" title={t('common.serviceUnavailable')} subtitle={t('common.serviceUnavailableSub')} />;
   }
   return <Checkout {...props} provider={provider} service={service} />;
 }
@@ -45,7 +47,7 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
   // Pix e cartão só com prestador que tem conta de recebimento; dinheiro some quando ele passou do
   // limite de comissões (as regras do Firestore recusariam o pedido nos dois casos)
   const methods = useMemo(
-    () => METHODS.filter((m) => (m.id === 'dinheiro' ? !provider.blockedForDebt : !!provider.acceptsOnlinePayment)),
+    () => allMethods().filter((m) => (m.id === 'dinheiro' ? !provider.blockedForDebt : !!provider.acceptsOnlinePayment)),
     [provider.blockedForDebt, provider.acceptsOnlinePayment],
   );
   const [payment, setPayment] = useState<PaymentMethod>(methods[0]?.id ?? 'pix');
@@ -99,37 +101,39 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
       const code = (e as { code?: string }).code;
       // o id do horário já existe: alguém reservou primeiro
       Alert.alert(
-        code === 'permission-denied' ? 'Horário indisponível' : 'Não foi possível agendar',
-        code === 'permission-denied' ? 'Esse horário acabou de ser reservado. Escolha outro.' : firebaseErrorMessage(e),
+        code === 'permission-denied' ? t('checkout.slotTaken') : t('checkout.failed'),
+        code === 'permission-denied' ? t('checkout.slotTakenSub') : firebaseErrorMessage(e),
       );
       if (code === 'permission-denied') navigation.goBack();
     }
   };
 
   return (
-    <View style={styles.flex}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 160 }} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 160 }}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={110}
+      >
         <FadeInView>
           <Card style={styles.providerRow}>
             <Avatar uri={provider.avatar} size={48} />
             <View style={{ flex: 1, marginLeft: spacing.md }}>
               <Text style={styles.bold}>{service.title}</Text>
-              <Text style={styles.muted}>com {provider.name}</Text>
+              <Text style={styles.muted}>{t('checkout.with', { name: provider.name })}</Text>
               <View style={styles.when}>
                 <Ionicons name="calendar" size={14} color={colors.primary} />
-                <Text style={styles.whenText}>
-                  {formatDateLong(date)} às {time}
-                </Text>
+                <Text style={styles.whenText}>{formatDateAt(date, time)}</Text>
               </View>
             </View>
           </Card>
         </FadeInView>
 
         <FadeInView delay={60}>
-          <Text style={styles.h}>Endereço</Text>
+          <Text style={styles.h}>{t('checkout.address')}</Text>
           {addresses.length === 0 && (
             <Card>
-              <Text style={[styles.muted, { marginBottom: spacing.md }]}>Onde o serviço vai ser feito?</Text>
+              <Text style={[styles.muted, { marginBottom: spacing.md }]}>{t('checkout.where')}</Text>
               <AddressForm
                 onSave={async (a) => {
                   await updateProfile({ addresses: [a] });
@@ -155,7 +159,7 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
         </FadeInView>
 
         <FadeInView delay={120}>
-          <Text style={styles.h}>Pagamento</Text>
+          <Text style={styles.h}>{t('checkout.payment')}</Text>
           <View style={styles.methods}>
             {methods.map((m) => {
               const active = m.id === payment;
@@ -168,7 +172,7 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
                 >
                   {m.id === 'pix' && (
                     <View style={styles.badge}>
-                      <Text style={styles.badgeText}>Mais barato</Text>
+                      <Text style={styles.badgeText}>{t('checkout.cheapest')}</Text>
                     </View>
                   )}
                   <View style={[styles.methodIcon, { backgroundColor: active ? m.color : colors.border }]}>
@@ -181,14 +185,14 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
             })}
           </View>
           {methods.length === 0 && (
-            <Text style={styles.muted}>Este prestador não está recebendo pedidos no momento. Tente outro prestador.</Text>
+            <Text style={styles.muted}>{t('checkout.noMethods')}</Text>
           )}
           {!provider.acceptsOnlinePayment && methods.length > 0 && (
-            <Text style={[styles.muted, { marginTop: spacing.sm }]}>Este prestador ainda não recebe por Pix ou cartão.</Text>
+            <Text style={[styles.muted, { marginTop: spacing.sm }]}>{t('checkout.noOnline')}</Text>
           )}
           {online && (
             <View style={{ marginTop: spacing.md }}>
-              <Text style={[styles.muted, { marginBottom: 6 }]}>CPF ou CNPJ de quem paga (exigido para Pix e cartão)</Text>
+              <Text style={[styles.muted, { marginBottom: 6 }]}>{t('checkout.cpfLabel')}</Text>
               <TextInput
                 value={cpf}
                 onChangeText={(v) => setCpf(v.replace(/[^\d./-]/g, ''))}
@@ -204,18 +208,18 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
             <PressableScale sound="select" onPress={() => setPayment('pix')} style={styles.pixTip}>
               <Ionicons name="flash" size={18} color={PIX_COLOR} />
               <Text style={styles.pixTipText}>
-                Pague com Pix e economize {formatBRL(pixSavings)}. <Text style={styles.pixTipLink}>Usar Pix</Text>
+                {t('checkout.pixTip', { amount: formatBRL(pixSavings) })} <Text style={styles.pixTipLink}>{t('checkout.usePix')}</Text>
               </Text>
             </PressableScale>
           )}
         </FadeInView>
 
         <FadeInView delay={180}>
-          <Text style={styles.h}>Observações</Text>
+          <Text style={styles.h}>{t('checkout.notes')}</Text>
           <TextInput
             value={notes}
             onChangeText={setNotes}
-            placeholder="Ex.: portão azul, tem cachorro, levar escada…"
+            placeholder={t('checkout.notesPh')}
             placeholderTextColor={colors.textMuted}
             multiline
             style={styles.notes}
@@ -225,17 +229,28 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
         <FadeInView delay={240}>
           <Card style={{ marginTop: spacing.xl }}>
             <Row label={service.title} value={formatBRL(service.price)} />
-            <Row label={price.minFeeApplied ? `Taxa da plataforma (mínimo ${formatBRL(MIN_PLATFORM_FEE)})` : 'Taxa da plataforma'} value={formatBRL(price.fee)} />
-            {price.surcharge > 0 && <Row label="Acréscimo do cartão" value={formatBRL(price.surcharge)} />}
+            <Row
+              label={price.minFeeApplied ? t('checkout.feeMin', { min: formatBRL(MIN_PLATFORM_FEE) }) : t('checkout.fee')}
+              value={formatBRL(price.fee)}
+            />
+            {price.surcharge > 0 && <Row label={t('checkout.cardSurcharge')} value={formatBRL(price.surcharge)} />}
             <View style={styles.divider} />
-            <Row label="Total estimado" value={formatBRL(total)} strong />
+            <Row label={t('checkout.total')} value={formatBRL(total)} strong />
           </Card>
         </FadeInView>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 12 }]}>
         <DuoButton
-          title={!address ? 'Adicione um endereço' : !cpfOk ? 'Informe o CPF' : online ? `Ir para o pagamento • ${formatBRL(total)}` : `Confirmar • ${formatBRL(total)}`}
+          title={
+            !address
+              ? t('checkout.addAddress')
+              : !cpfOk
+                ? t('checkout.needCpf')
+                : online
+                  ? t('checkout.goToPayment', { total: formatBRL(total) })
+                  : t('checkout.confirm', { total: formatBRL(total) })
+          }
           icon="checkmark-circle"
           disabled={!canConfirm}
           loading={loading}
@@ -243,7 +258,7 @@ function Checkout({ route, navigation, provider, service }: RootScreenProps<'Che
           sound="none"
         />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -256,18 +271,18 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   flex: { flex: 1, backgroundColor: colors.bg },
   providerRow: { flexDirection: 'row', alignItems: 'center' },
   bold: { fontSize: 15, fontWeight: '800', color: colors.text },
   muted: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
   when: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-  whenText: { marginLeft: 6, fontWeight: '700', color: colors.primaryDark, fontSize: 13 },
+  whenText: { marginLeft: 6, fontWeight: '700', color: colors.primaryText, fontSize: 13 },
   h: { fontSize: 18, fontWeight: '800', color: colors.text, marginTop: spacing.xl, marginBottom: spacing.md },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 2,
     borderBottomWidth: 4,
@@ -280,7 +295,7 @@ const styles = StyleSheet.create({
   method: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 2,
     borderBottomWidth: 5,
@@ -312,7 +327,7 @@ const styles = StyleSheet.create({
   pixTipLink: { color: PIX_COLOR, fontWeight: '900' },
   methodIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   cpf: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.border,
@@ -324,7 +339,7 @@ const styles = StyleSheet.create({
   },
   notes: {
     minHeight: 90,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.border,
@@ -337,7 +352,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 4 },
   divider: { height: 2, backgroundColor: colors.border, marginVertical: spacing.sm },
   totalLabel: { fontSize: 16, fontWeight: '800', color: colors.text },
-  totalValue: { fontSize: 20, fontWeight: '900', color: colors.primaryDark },
+  totalValue: { fontSize: 20, fontWeight: '900', color: colors.primaryText },
   bottom: {
     position: 'absolute',
     bottom: 0,
@@ -345,8 +360,8 @@ const styles = StyleSheet.create({
     right: 0,
     padding: spacing.lg,
     paddingTop: 12,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderTopWidth: 2,
     borderTopColor: colors.border,
   },
-});
+}));

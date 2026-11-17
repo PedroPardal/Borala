@@ -28,6 +28,8 @@ export interface Address {
   label: string;
   street: string;
   city: string;
+  /** ponto marcado no mapa (endereços antigos não têm) */
+  location?: GeoPoint;
 }
 
 export interface PriceItem {

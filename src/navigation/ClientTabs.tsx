@@ -8,6 +8,7 @@ import OrdersScreen from '../screens/client/OrdersScreen';
 import ConversationsScreen from '../screens/shared/ConversationsScreen';
 import ClientProfileScreen from '../screens/client/ClientProfileScreen';
 import { feedback } from '../services/feedback';
+import { t } from '../i18n';
 
 const Tab = createBottomTabNavigator<ClientTabParamList>();
 
@@ -18,22 +19,22 @@ export default function ClientTabs() {
       <Tab.Screen
         name="Home"
         component={HomeScreen}
-        options={({ navigation }) => ({ title: 'Explorar', tabBarIcon: () => <TabIcon name="compass" focused={navigation.isFocused()} /> })}
+        options={({ navigation }) => ({ title: t('nav.explore'), tabBarIcon: () => <TabIcon name="compass" focused={navigation.isFocused()} /> })}
       />
       <Tab.Screen
         name="Orders"
         component={OrdersScreen}
-        options={({ navigation }) => ({ title: 'Pedidos', tabBarIcon: () => <TabIcon name="receipt" focused={navigation.isFocused()} /> })}
+        options={({ navigation }) => ({ title: t('nav.orders'), tabBarIcon: () => <TabIcon name="receipt" focused={navigation.isFocused()} /> })}
       />
       <Tab.Screen
         name="Messages"
         component={ConversationsScreen}
-        options={({ navigation }) => ({ title: 'Mensagens', tabBarIcon: () => <TabIcon name="chatbubbles" focused={navigation.isFocused()} /> })}
+        options={({ navigation }) => ({ title: t('nav.messages'), tabBarIcon: () => <TabIcon name="chatbubbles" focused={navigation.isFocused()} /> })}
       />
       <Tab.Screen
         name="ClientProfile"
         component={ClientProfileScreen}
-        options={({ navigation }) => ({ title: 'Perfil', tabBarIcon: () => <TabIcon name="person" focused={navigation.isFocused()} /> })}
+        options={({ navigation }) => ({ title: t('nav.profile'), tabBarIcon: () => <TabIcon name="person" focused={navigation.isFocused()} /> })}
       />
     </Tab.Navigator>
   );

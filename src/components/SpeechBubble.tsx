@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { colors, radius } from '../theme';
+import { Animated, Pressable, StyleProp, Text, View, ViewStyle } from 'react-native';
+import { colors, radius, makeStyles } from '../theme';
 
 interface Props {
   text: string;
@@ -34,7 +34,8 @@ export default function SpeechBubble({ text, tail = 'bottom', tone = 'normal', s
     return () => clearInterval(id);
   }, [text, pop]);
 
-  const border = tone === 'alert' ? colors.danger : colors.navy;
+  // contorno na cor do texto: escuro no tema claro, claro no tema escuro
+  const border = tone === 'alert' ? colors.danger : colors.text;
   return (
     <Animated.View
       style={[
@@ -60,9 +61,9 @@ export default function SpeechBubble({ text, tail = 'bottom', tone = 'normal', s
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   bubble: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderWidth: 2,
     borderBottomWidth: 4,
     borderRadius: radius.lg,
@@ -79,7 +80,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: 16,
     height: 16,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRightWidth: 3,
     borderBottomWidth: 3,
     transform: [{ rotate: '45deg' }],
@@ -90,9 +91,9 @@ const styles = StyleSheet.create({
     top: 22,
     width: 16,
     height: 16,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderLeftWidth: 2,
     borderBottomWidth: 2,
     transform: [{ rotate: '45deg' }],
   },
-});
+}));

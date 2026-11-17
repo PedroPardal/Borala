@@ -35,7 +35,8 @@ import {
 } from '../types';
 import { defaultAvailability } from '../data/categories';
 import { fb, isFirebaseConfigured } from '../services/firebase';
-import { uploadUserImage } from '../services/uploads';
+import { savePhoto } from '../services/photos';
+import { t } from '../i18n';
 import { distanceKm, getCurrentPosition } from '../services/geo';
 import { requireOnline, useOnline } from '../services/network';
 import { clearOfflineSnapshot, loadOfflineSnapshot, saveOfflineSnapshot } from '../services/offlineCache';
@@ -75,7 +76,7 @@ export interface OnboardingData {
   provider?: {
     bio: string;
     categories: CategoryId[];
-    /** fotos locais (do seletor); são enviadas ao Storage depois de criar a conta */
+    /** fotos escolhidas (data URI do pickImage); são salvas depois de criar a conta */
     avatarUri?: string;
     service: { title: string; price: number; unit: string; photoUri: string };
   };
@@ -103,8 +104,8 @@ interface AppContextValue {
   switchRole: (next: UserRole) => Promise<void>;
 
   updateProfile: (patch: ProfilePatch) => Promise<void>;
-  /** envia uma foto local para o Storage da conta e devolve a URL */
-  uploadImage: (name: string, localUri: string) => Promise<string>;
+  /** salva uma foto escolhida (data URI de `pickImage`) e devolve a referência para gravar no perfil */
+  uploadImage: (photo: string) => Promise<string>;
 
   myLocation: GeoPoint | null;
   refreshLocation: () => Promise<GeoPoint | null>;
@@ -142,7 +143,7 @@ function onListenError(e: { code?: string }) {
   console.warn('[firestore]', e);
   if (e.code === 'permission-denied' && !warnedRules) {
     warnedRules = true;
-    Alert.alert('Sem permissão no banco', 'Publique as regras do arquivo firestore.rules no Console do Firebase.');
+    Alert.alert(t('rules.title'), t('rules.body'));
   }
 }
 
@@ -346,10 +347,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // fotos: se falharem, a conta é criada assim mesmo e a pessoa troca depois no perfil
       let photosFailed = false;
-      const upload = async (name: string, uri?: string) => {
+      // as fotos já vêm reduzidas do seletor (data URI) e são salvas na coleção "photos" do Firestore
+      const upload = async (uri?: string) => {
         if (!uri) return '';
         try {
-          return await uploadUserImage(id, name, uri);
+          return await savePhoto(id, uri);
         } catch (e) {
           console.warn('[cadastro] falha ao enviar foto', e);
           photosFailed = true;
@@ -357,8 +359,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       };
       const [avatar, servicePhoto] = await Promise.all([
-        upload('avatar', d.provider?.avatarUri),
-        upload('servico-s1', d.provider?.service.photoUri),
+        upload(d.provider?.avatarUri),
+        upload(d.provider?.service.photoUri),
       ]);
 
       const now = Date.now();
@@ -453,9 +455,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const uploadImage = useCallback(
-    (name: string, localUri: string) => {
+    async (photo: string) => {
       if (!uid) throw new Error('Sem login');
-      return uploadUserImage(uid, name, localUri);
+      requireOnline();
+      return savePhoto(uid, photo);
     },
     [uid],
   );

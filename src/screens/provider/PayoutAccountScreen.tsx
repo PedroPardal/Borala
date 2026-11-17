@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Card from '../../components/Card';
 import Chip from '../../components/Chip';
@@ -8,17 +8,17 @@ import TextField from '../../components/TextField';
 import { useApp } from '../../context/AppContext';
 import { RootScreenProps } from '../../navigation/types';
 import { PayoutAccountForm } from '../../types';
-import { colors, spacing } from '../../theme';
+import { colors, spacing, makeStyles } from '../../theme';
+import { t, tList } from '../../i18n';
 import { feedback } from '../../services/feedback';
 import { firebaseErrorMessage } from '../../services/firebase';
 import { createPayoutAccount } from '../../services/payments';
 
-const COMPANY_TYPES: { id: NonNullable<PayoutAccountForm['companyType']>; label: string }[] = [
-  { id: 'MEI', label: 'MEI' },
-  { id: 'LIMITED', label: 'Limitada' },
-  { id: 'INDIVIDUAL', label: 'Individual' },
-  { id: 'ASSOCIATION', label: 'Associação' },
-];
+const COMPANY_IDS: NonNullable<PayoutAccountForm['companyType']>[] = ['MEI', 'LIMITED', 'INDIVIDUAL', 'ASSOCIATION'];
+const companyTypes = () => {
+  const labels = tList('payout.companyTypes');
+  return COMPANY_IDS.map((id, i) => ({ id, label: labels[i] }));
+};
 
 const digits = (v: string) => v.replace(/\D/g, '');
 
@@ -57,10 +57,9 @@ export default function PayoutAccountScreen({ navigation }: RootScreenProps<'Pay
     return (
       <View style={[styles.flex, styles.done]}>
         <Ionicons name="checkmark-circle" size={64} color={colors.success} />
-        <Text style={styles.doneTitle}>Conta de recebimento ativa</Text>
+        <Text style={styles.doneTitle}>{t('payout.activeTitle')}</Text>
         <Text style={styles.muted}>
-          Você já recebe por Pix e cartão. Os repasses caem na sua conta Asaas: acesse pelo e-mail que o Asaas enviou para
-          você, e de lá faça o saque para o seu banco.
+          {t('payout.activeSub')}
         </Text>
       </View>
     );
@@ -97,13 +96,13 @@ export default function PayoutAccountScreen({ navigation }: RootScreenProps<'Pay
       });
       feedback.celebrate();
       Alert.alert(
-        'Conta criada!',
-        'Agora você recebe por Pix e cartão. O Asaas vai te mandar um e-mail para acessar a conta; ele pode pedir documentos para liberar os saques.',
+        t('payout.createdTitle'),
+        t('payout.createdSub'),
       );
       navigation.goBack();
     } catch (e) {
       feedback.error();
-      Alert.alert('Não foi possível criar a conta', firebaseErrorMessage(e));
+      Alert.alert(t('payout.createFailed'), firebaseErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -113,64 +112,62 @@ export default function PayoutAccountScreen({ navigation }: RootScreenProps<'Pay
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <Card style={{ marginBottom: spacing.lg }}>
-          <Text style={styles.bold}>Por que preciso disso?</Text>
+          <Text style={styles.bold}>{t('payout.whyTitle')}</Text>
           <Text style={styles.muted}>
-            O pagamento por Pix ou cartão passa pela BoraLá e é repassado a você quando o serviço é concluído. Para isso, o
-            Asaas (nosso parceiro de pagamentos) abre uma conta no seu nome. Clientes preferem Pix, e você ainda quita as
-            comissões dos serviços em dinheiro.
+            {t('payout.whyBody')}
           </Text>
         </Card>
 
-        <Text style={styles.h}>Seus dados</Text>
-        <TextField icon="id-card" placeholder="CPF ou CNPJ" keyboardType="number-pad" value={cpfCnpj} onChangeText={setCpfCnpj} maxLength={18} />
+        <Text style={styles.h}>{t('payout.yourData')}</Text>
+        <TextField icon="id-card" placeholder={t('payout.cpfCnpj')} keyboardType="number-pad" value={cpfCnpj} onChangeText={setCpfCnpj} maxLength={18} />
         {isCompany ? (
           <View style={styles.chips}>
-            {COMPANY_TYPES.map((t) => (
-              <Chip key={t.id} label={t.label} selected={companyType === t.id} onPress={() => setCompanyType(t.id)} />
+            {companyTypes().map((c) => (
+              <Chip key={c.id} label={c.label} selected={companyType === c.id} onPress={() => setCompanyType(c.id)} />
             ))}
           </View>
         ) : (
           <TextField
             icon="calendar"
-            placeholder="Data de nascimento (dd/mm/aaaa)"
+            placeholder={t('onb.birth')}
             keyboardType="number-pad"
             value={birth}
             onChangeText={(v) => setBirth(maskDate(v))}
             maxLength={10}
           />
         )}
-        <TextField icon="call" placeholder="Celular com DDD" keyboardType="phone-pad" value={phone} onChangeText={setPhone} maxLength={15} />
+        <TextField icon="call" placeholder={t('onb.phone')} keyboardType="phone-pad" value={phone} onChangeText={setPhone} maxLength={15} />
         <TextField
           icon="wallet"
-          placeholder="Renda mensal aproximada (R$)"
+          placeholder={t('payout.income')}
           keyboardType="decimal-pad"
           value={income}
           onChangeText={(v) => setIncome(v.replace(/[^\d,]/g, ''))}
         />
 
-        <Text style={styles.h}>Endereço</Text>
-        <TextField icon="location" placeholder="CEP" keyboardType="number-pad" value={cep} onChangeText={setCep} maxLength={9} />
-        <TextField icon="home" placeholder="Rua" value={street} onChangeText={setStreet} />
+        <Text style={styles.h}>{t('payout.address')}</Text>
+        <TextField icon="location" placeholder={t('onb.cep')} keyboardType="number-pad" value={cep} onChangeText={setCep} maxLength={9} />
+        <TextField icon="home" placeholder={t('onb.street')} value={street} onChangeText={setStreet} />
         <View style={styles.row}>
           <View style={{ flex: 1, marginRight: spacing.sm }}>
-            <TextField icon="keypad" placeholder="Número" value={number} onChangeText={setNumber} />
+            <TextField icon="keypad" placeholder={t('onb.number')} value={number} onChangeText={setNumber} />
           </View>
           <View style={{ flex: 1.4 }}>
-            <TextField icon="business" placeholder="Complemento" value={complement} onChangeText={setComplement} />
+            <TextField icon="business" placeholder={t('onb.complement')} value={complement} onChangeText={setComplement} />
           </View>
         </View>
-        <TextField icon="map" placeholder="Bairro" value={district} onChangeText={setDistrict} />
+        <TextField icon="map" placeholder={t('onb.district')} value={district} onChangeText={setDistrict} />
 
-        <DuoButton title="Criar conta de recebimento" icon="checkmark-circle" disabled={!valid} loading={loading} onPress={submit} sound="none" />
+        <DuoButton title={t('payout.create')} icon="checkmark-circle" disabled={!valid} loading={loading} onPress={submit} sound="none" />
         <Text style={[styles.muted, { marginTop: spacing.md, textAlign: 'center' }]}>
-          Seus dados vão direto para o Asaas e não ficam visíveis para clientes.
+          {t('payout.privacy')}
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   flex: { flex: 1, backgroundColor: colors.bg },
   done: { alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.md },
   doneTitle: { fontSize: 20, fontWeight: '900', color: colors.text, textAlign: 'center' },
@@ -179,4 +176,4 @@ const styles = StyleSheet.create({
   h: { fontSize: 18, fontWeight: '800', color: colors.text, marginTop: spacing.md, marginBottom: spacing.md },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: 12 },
   row: { flexDirection: 'row' },
-});
+}));

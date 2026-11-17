@@ -2,7 +2,9 @@
 
 **Agora vai! Trabalhe e encontre no seu tempo.**
 
-App que conecta quem precisa de um serviço a freelancers da região: motoboy e entregas, fretes, limpeza, reparos, jardinagem, beleza, pets, tecnologia e aulas particulares. Usa o **Firebase** (Authentication, Firestore e Storage) para contas, pedidos, avaliações, chat em tempo real e fotos.
+App que conecta quem precisa de um serviço a freelancers da região: motoboy e entregas, fretes, limpeza, reparos, jardinagem, beleza, pets, tecnologia e aulas particulares. Usa o **Firebase** (Authentication e Firestore) para contas, pedidos, avaliações, chat em tempo real e fotos. Funciona no plano gratuito (Spark).
+
+O app está em **português, inglês e espanhol** e tem **modo escuro**: os dois ficam em **Perfil → Preferências** (o idioma também pode ser trocado na tela de login). Na primeira abertura ele usa o idioma e o tema do celular.
 
 ### 🎨 Identidade visual
 
@@ -45,14 +47,13 @@ O app usa o SDK JavaScript do Firebase, que funciona no Expo Go (não precisa ge
 ### 1. No Console do Firebase (console.firebase.google.com)
 1. **Authentication → Método de login →** ative **E-mail/senha**.
 2. **Firestore Database → Criar banco de dados →** escolha `southamerica-east1` (São Paulo) e comece no **modo de produção**.
-3. **Storage → Começar** (exige o plano **Blaze**; tem cota gratuita e você só paga se passar dela).
-4. **Configurações do projeto → Seus apps → Web (`</>`) →** registre um app e copie o `firebaseConfig`.
+3. **Configurações do projeto → Seus apps → Web (`</>`) →** registre um app e copie o `firebaseConfig`.
 
 ### 2. No projeto
 1. Copie `.env.example` para `.env` e preencha com os valores do `firebaseConfig`.
 2. Publique as regras de segurança. Sem elas o app não consegue ler nem gravar nada.
-   - Pelo console: cole `firestore.rules` em **Firestore → Regras** e `storage.rules` em **Storage → Regras**.
-   - Ou pelo terminal: `npx firebase-tools login` e depois `npx firebase-tools deploy --only firestore,storage --project SEU_PROJECT_ID`.
+   - Pelo console: cole `firestore.rules` em **Firestore → Regras** e clique em **Publicar**.
+   - Ou pelo terminal: `npx firebase-tools login` e depois `npx firebase-tools deploy --only firestore --project SEU_PROJECT_ID`.
 3. Reinicie com `npx expo start --clear` (o `.env` só é lido quando o servidor inicia).
 
 ### Como os dados ficam organizados
@@ -68,7 +69,9 @@ O app usa o SDK JavaScript do Firebase, que funciona no Expo Go (não precisa ge
 | `payments/{pedido}` | cobrança do Asaas (QR Code Pix, link do cartão) | o cliente do pedido; só o servidor grava |
 | `providerBalances/{uid}` | comissões de serviços em dinheiro a descontar | o próprio prestador; só o servidor grava |
 | `providerAccounts/{uid}`, `asaasCustomers/{uid}` | ids internos do Asaas | só o servidor |
-| Storage `users/{uid}/` | foto de perfil e fotos de antes/depois | qualquer usuário logado |
+| `photos/{uid_id}` | foto de perfil e fotos de antes/depois (JPEG reduzido no celular, em base64). Os perfis guardam só a referência `photo:{id}` | qualquer usuário logado |
+
+> As fotos não usam o Firebase Storage, que agora exige o plano Blaze. Elas são reduzidas no celular (512 px no perfil, 960 px no portfólio) e cabem com folga no limite de 1 MB de um documento do Firestore.
 
 Um prestador só aparece nas buscas quando está **online**, tem **pelo menos uma especialidade e um serviço** e, se as duas localizações forem conhecidas, quando o cliente está dentro do **raio de atendimento**. O Painel do prestador mostra o que falta.
 
@@ -146,8 +149,10 @@ jardimja/
     │   └── shared/   Conversations · Chat
     ├── services/feedback.ts    # Sons (expo-audio) + vibração (expo-haptics)
     ├── services/firebase.ts    # Inicialização do Firebase a partir do .env
-    ├── services/uploads.ts · pickImage.ts · geo.ts  # Fotos no Storage, seletor de imagem, distância
-    ├── theme/index.ts          # Cores, espaçamentos, raios
+    ├── services/photos.ts · pickImage.ts · geo.ts  # Fotos no Firestore, seletor de imagem, distância
+    ├── context/SettingsContext.tsx  # Idioma e tema escolhidos (salvos no aparelho)
+    ├── i18n/                   # Textos em pt.ts (referência), en.ts e es.ts
+    ├── theme/index.ts          # Paletas clara e escura, makeStyles, espaçamentos, raios
     ├── types/index.ts          # Modelos de domínio
     └── utils/format.ts         # Moeda (R$), datas
 ```
@@ -159,7 +164,7 @@ Na primeira vez que o app abre, o **Mélo** recebe a pessoa e conversa com ela (
 - **Quero trabalhar:** nome completo → CPF, nascimento e celular → áreas de atuação → foto e bio → primeiro serviço (nome, preço, unidade e foto) → e-mail e senha.
 - **Quero contratar:** nome e celular → endereço (o CEP preenche a rua pela ViaCEP) → e-mail e senha.
 
-Nada é gravado até o último passo: aí a conta é criada, as fotos sobem para o Storage e o perfil (e o perfil público do prestador) é gravado de uma vez. O Mélo comemora com confete e o app abre. Se algum campo estiver errado, ele faz cara de curioso e explica no balão; tocar nele faz ele pular e falar alguma coisa.
+Nada é gravado até o último passo: aí a conta é criada, as fotos são salvas (reduzidas, na coleção `photos`) e o perfil (e o perfil público do prestador) é gravado de uma vez. O Mélo comemora com confete e o app abre. Se algum campo estiver errado, ele faz cara de curioso e explica no balão; tocar nele faz ele pular e falar alguma coisa.
 
 As poses ficam em `assets/melo/` (PNG com fundo transparente, recortadas da folha do personagem). Para trocar por versões melhores, substitua os arquivos mantendo os nomes; se a proporção mudar, atualize o `ratio` em `src/components/Melo.tsx`.
 

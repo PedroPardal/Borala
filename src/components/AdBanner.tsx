@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { bannerUnitId, getAdsModule } from '../services/ads';
 import { useOnline } from '../services/network';
+import { makeStyles } from '../theme';
 
 /** Banner do AdMob. Some sozinho no Expo Go, sem internet ou se o anúncio não carregar. */
 export default function AdBanner() {
@@ -25,6 +26,6 @@ export default function AdBanner() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   wrap: { alignItems: 'center', marginVertical: 8 },
-});
+}));

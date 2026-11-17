@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Animated, Dimensions, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Dimensions, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Avatar from '../../components/Avatar';
@@ -9,12 +9,14 @@ import Card from '../../components/Card';
 import PressableScale from '../../components/PressableScale';
 import FadeInView from '../../components/FadeInView';
 import EmptyState from '../../components/EmptyState';
+import Photo from '../../components/Photo';
 import { useApp } from '../../context/AppContext';
 import { useProviderReviews } from '../../context/hooks';
 import { categories } from '../../data/categories';
 import { PortfolioItem, Provider } from '../../types';
 import { RootScreenProps } from '../../navigation/types';
-import { colors, radius, spacing } from '../../theme';
+import { colors, radius, spacing, makeStyles } from '../../theme';
+import { t } from '../../i18n';
 import { formatBRL, formatDateLong } from '../../utils/format';
 import { feedback } from '../../services/feedback';
 
@@ -38,14 +40,14 @@ function BeforeAfter({ item }: { item: PortfolioItem }) {
   return (
     <Pressable onPress={toggle} style={styles.slide}>
       <Animated.View style={{ opacity: fade }}>
-        <Image source={{ uri: showAfter ? item.after : item.before }} style={styles.slideImg} />
+        <Photo uri={showAfter ? item.after : item.before} style={styles.slideImg} />
       </Animated.View>
       <View style={[styles.baBadge, { backgroundColor: showAfter ? colors.primary : colors.navy }]}>
-        <Text style={styles.baText}>{showAfter ? 'DEPOIS' : 'ANTES'}</Text>
+        <Text style={styles.baText}>{showAfter ? t('details.after') : t('details.before')}</Text>
       </View>
       <View style={styles.slideFooter}>
         <Text style={styles.slideTitle}>{item.title}</Text>
-        <Text style={styles.slideHint}>Toque para ver o {showAfter ? 'antes' : 'depois'}</Text>
+        <Text style={styles.slideHint}>{showAfter ? t('details.tapBefore') : t('details.tapAfter')}</Text>
       </View>
     </Pressable>
   );
@@ -54,7 +56,7 @@ function BeforeAfter({ item }: { item: PortfolioItem }) {
 export default function ProviderDetailsScreen(props: RootScreenProps<'ProviderDetails'>) {
   const { getProvider } = useApp();
   const provider = getProvider(props.route.params.providerId);
-  if (!provider) return <EmptyState icon="person-remove-outline" title="Prestador não encontrado" />;
+  if (!provider) return <EmptyState icon="person-remove-outline" title={t('details.notFound')} />;
   return <ProviderDetails {...props} provider={provider} />;
 }
 
@@ -108,12 +110,12 @@ function ProviderDetails({ navigation, provider }: RootScreenProps<'ProviderDeta
       >
         <View style={[styles.cover, { paddingTop: insets.top + 56 }]}>
           <FadeInView style={{ alignItems: 'center' }}>
-            <Avatar uri={provider.avatar} size={96} ring={colors.white} />
+            <Avatar uri={provider.avatar} size={96} ring={colors.card} />
             <Text style={styles.name}>{provider.name}</Text>
             {provider.reviewsCount > 0 ? (
               <RatingStars rating={provider.rating} showValue count={provider.reviewsCount} size={16} />
             ) : (
-              <Text style={styles.newBadge}>Novo no BoraLá ✨</Text>
+              <Text style={styles.newBadge}>{t('details.new')}</Text>
             )}
             <View style={styles.tags}>
               {cats.map((c) => (
@@ -127,23 +129,23 @@ function ProviderDetails({ navigation, provider }: RootScreenProps<'ProviderDeta
 
         <View style={styles.body}>
           <FadeInView delay={80} style={styles.statsRow}>
-            <Stat icon="checkmark-done" value={`${provider.completedJobs}`} label="serviços" />
+            <Stat icon="checkmark-done" value={`${provider.completedJobs}`} label={t('details.jobs')} />
             <Stat
               icon="navigate"
               value={provider.distanceKm !== undefined ? `${provider.distanceKm.toFixed(1)} km` : '—'}
-              label={provider.distanceKm !== undefined ? 'de você' : provider.area ?? 'sem local'}
+              label={provider.distanceKm !== undefined ? t('details.fromYou') : provider.area ?? t('details.noLocation')}
             />
-            <Stat icon="radio" value={`${provider.radiusKm} km`} label="raio" />
+            <Stat icon="radio" value={`${provider.radiusKm} km`} label={t('details.radius')} />
           </FadeInView>
 
           <FadeInView delay={140}>
-            <Text style={styles.h}>Sobre</Text>
+            <Text style={styles.h}>{t('details.about')}</Text>
             <Text style={styles.bio}>{provider.bio}</Text>
           </FadeInView>
 
           {provider.portfolio.length > 0 && (
           <FadeInView delay={200}>
-            <Text style={styles.h}>Antes e Depois</Text>
+            <Text style={styles.h}>{t('details.beforeAfter')}</Text>
             <ScrollView
               horizontal
               snapToInterval={SLIDE_W + spacing.md}
@@ -158,7 +160,7 @@ function ProviderDetails({ navigation, provider }: RootScreenProps<'ProviderDeta
           )}
 
           <FadeInView delay={260}>
-            <Text style={styles.h}>Tabela de preços</Text>
+            <Text style={styles.h}>{t('common.priceTable')}</Text>
             {provider.priceTable.map((s) => {
               const active = s.id === selected?.id;
               return (
@@ -171,7 +173,7 @@ function ProviderDetails({ navigation, provider }: RootScreenProps<'ProviderDeta
                   <View style={[styles.radio, active && { borderColor: colors.primary }]}>
                     {active && <View style={styles.radioDot} />}
                   </View>
-                  {s.photo ? <Image source={{ uri: s.photo }} style={styles.servicePhoto} /> : null}
+                  {s.photo ? <Photo uri={s.photo} style={styles.servicePhoto} /> : null}
                   <View style={{ flex: 1 }}>
                     <Text style={styles.serviceTitle}>{s.title}</Text>
                     <Text style={styles.serviceUnit}>{s.unit}</Text>
@@ -183,8 +185,8 @@ function ProviderDetails({ navigation, provider }: RootScreenProps<'ProviderDeta
           </FadeInView>
 
           <FadeInView delay={320}>
-            <Text style={styles.h}>Avaliações</Text>
-            {providerReviews.length === 0 && <Text style={styles.bio}>Ainda sem avaliações.</Text>}
+            <Text style={styles.h}>{t('details.reviews')}</Text>
+            {providerReviews.length === 0 && <Text style={styles.bio}>{t('details.noReviews')}</Text>}
             {providerReviews.map((r) => (
               <Card key={r.id} style={{ marginBottom: spacing.md }}>
                 <View style={styles.reviewHead}>
@@ -204,11 +206,11 @@ function ProviderDetails({ navigation, provider }: RootScreenProps<'ProviderDeta
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <View style={{ marginRight: spacing.lg }}>
-          <Text style={styles.serviceUnit}>Valor estimado</Text>
+          <Text style={styles.serviceUnit}>{t('details.estimated')}</Text>
           <Text style={styles.total}>{selected ? formatBRL(selected.price) : '—'}</Text>
         </View>
         <DuoButton
-          title={provider.online ? 'Agendar' : 'Indisponível'}
+          title={provider.online ? t('details.book') : t('details.unavailable')}
           icon="calendar"
           disabled={!selected || !provider.online}
           style={{ flex: 1 }}
@@ -229,7 +231,7 @@ function Stat({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; va
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   servicePhoto: { width: 52, height: 40, borderRadius: 8, marginRight: 10 },
   flex: { flex: 1, backgroundColor: colors.bg },
   stickyHeader: {
@@ -238,7 +240,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 5,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderBottomWidth: 2,
     borderBottomColor: colors.border,
     alignItems: 'center',
@@ -250,7 +252,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 14,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -260,14 +262,14 @@ const styles = StyleSheet.create({
   cover: { backgroundColor: colors.primaryLight, paddingBottom: spacing.xl, borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
   name: { fontSize: 24, fontWeight: '900', color: colors.text, marginTop: 10, marginBottom: 4 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 10, paddingHorizontal: spacing.lg },
-  tag: { backgroundColor: colors.white, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, marginHorizontal: 4, marginBottom: 6 },
-  tagText: { fontSize: 12, fontWeight: '800', color: colors.primaryDark },
-  newBadge: { fontSize: 13, fontWeight: '800', color: colors.primaryDark },
+  tag: { backgroundColor: colors.card, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, marginHorizontal: 4, marginBottom: 6 },
+  tagText: { fontSize: 12, fontWeight: '800', color: colors.primaryText },
+  newBadge: { fontSize: 13, fontWeight: '800', color: colors.primaryText },
   body: { padding: spacing.lg },
   statsRow: { flexDirection: 'row', gap: spacing.md, marginTop: -40 },
   stat: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.lg,
     borderWidth: 2,
     borderBottomWidth: 5,
@@ -282,13 +284,13 @@ const styles = StyleSheet.create({
   slideImg: { width: SLIDE_W, height: 210 },
   baBadge: { position: 'absolute', top: 12, left: 12, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   baText: { color: colors.white, fontWeight: '900', fontSize: 12, letterSpacing: 1 },
-  slideFooter: { backgroundColor: colors.white, padding: spacing.md },
+  slideFooter: { backgroundColor: colors.card, padding: spacing.md },
   slideTitle: { fontWeight: '800', fontSize: 15, color: colors.text },
   slideHint: { fontSize: 12, color: colors.textMuted, fontWeight: '600', marginTop: 2 },
   service: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 2,
     borderBottomWidth: 4,
@@ -300,7 +302,7 @@ const styles = StyleSheet.create({
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
   serviceTitle: { fontWeight: '800', fontSize: 15, color: colors.text },
   serviceUnit: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
-  servicePrice: { fontWeight: '900', fontSize: 16, color: colors.primaryDark },
+  servicePrice: { fontWeight: '900', fontSize: 16, color: colors.primaryText },
   reviewHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   reviewName: { fontWeight: '800', color: colors.text },
   reviewText: { fontSize: 14, color: colors.text, fontWeight: '500', lineHeight: 20 },
@@ -311,11 +313,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderTopWidth: 2,
     borderTopColor: colors.border,
     paddingHorizontal: spacing.lg,
     paddingTop: 12,
   },
   total: { fontSize: 20, fontWeight: '900', color: colors.text },
-});
+}));

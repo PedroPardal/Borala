@@ -1,10 +1,11 @@
 import React, { useRef } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { DefaultTheme, NavigationContainer, NavigationState } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, NavigationContainer, NavigationState, Theme } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types';
 import { useApp } from '../context/AppContext';
-import { colors } from '../theme';
+import { colors, isDarkTheme } from '../theme';
+import { t } from '../i18n';
 import { feedback } from '../services/feedback';
 import { isFirebaseConfigured } from '../services/firebase';
 import { LogoMark } from '../components/Logo';
@@ -27,21 +28,32 @@ import EditProfileScreen from '../screens/shared/EditProfileScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const navTheme = {
-  ...DefaultTheme,
-  colors: { ...DefaultTheme.colors, background: colors.bg, primary: colors.primary },
-};
+/**
+ * Última tela aberta. Trocar idioma ou tema remonta a navegação; com isso a pessoa continua
+ * na mesma tela. Só vale para a mesma conta e o mesmo modo (cliente/prestador).
+ */
+let lastNav: { key: string; state: NavigationState } | null = null;
 
-const stackOptions: NativeStackNavigationOptions = {
-  animation: 'slide_from_right',
-  animationDuration: 280,
-  headerShadowVisible: false,
-  headerStyle: { backgroundColor: colors.bg },
-  headerTitleStyle: { fontWeight: '800', color: colors.text },
-  headerTintColor: colors.text,
-  headerBackButtonDisplayMode: 'minimal',
-  contentStyle: { backgroundColor: colors.bg },
-};
+function navTheme(): Theme {
+  const base = isDarkTheme() ? DarkTheme : DefaultTheme;
+  return {
+    ...base,
+    colors: { ...base.colors, background: colors.bg, card: colors.card, text: colors.text, border: colors.border, primary: colors.primary },
+  };
+}
+
+function stackOptions(): NativeStackNavigationOptions {
+  return {
+    animation: 'slide_from_right',
+    animationDuration: 280,
+    headerShadowVisible: false,
+    headerStyle: { backgroundColor: colors.bg },
+    headerTitleStyle: { fontWeight: '800', color: colors.text },
+    headerTintColor: colors.text,
+    headerBackButtonDisplayMode: 'minimal',
+    contentStyle: { backgroundColor: colors.bg },
+  };
+}
 
 export default function RootNavigator() {
   const { session, initializing, onboardingHold } = useApp();
@@ -59,9 +71,12 @@ export default function RootNavigator() {
     );
   }
 
-  // Toca o "whoosh" sempre que a pilha de telas avança ou volta
+  const navKey = session ? `${session.uid}:${session.role}` : 'guest';
+
   const handleStateChange = (state: NavigationState | undefined) => {
     if (!state) return;
+    lastNav = { key: navKey, state };
+    // Toca o "whoosh" sempre que a pilha de telas avança ou volta
     const depth = state.routes.length;
     if (depth !== lastDepth.current) {
       if (lastDepth.current !== 0) feedback.transition();
@@ -70,8 +85,12 @@ export default function RootNavigator() {
   };
 
   return (
-    <NavigationContainer theme={navTheme} onStateChange={handleStateChange}>
-      <Stack.Navigator screenOptions={stackOptions}>
+    <NavigationContainer
+      theme={navTheme()}
+      initialState={lastNav?.key === navKey ? lastNav.state : undefined}
+      onStateChange={handleStateChange}
+    >
+      <Stack.Navigator screenOptions={stackOptions()}>
         {!session || onboardingHold ? (
           // primeira vez no aparelho: abre no cadastro com o Mélo; depois, no login.
           // onboardingHold mantém o Mélo na tela para a comemoração depois de criar a conta.
@@ -90,9 +109,13 @@ export default function RootNavigator() {
           <>
             <Stack.Screen name="ClientTabs" component={ClientTabs} options={{ headerShown: false, animation: 'fade' }} />
             <Stack.Screen name="ProviderDetails" component={ProviderDetailsScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="Schedule" component={ScheduleScreen} options={{ title: 'Agendar' }} />
-            <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ title: 'Resumo do pedido', animation: 'slide_from_bottom' }} />
-            <Stack.Screen name="Payment" component={PaymentScreen} options={{ title: 'Pagamento', gestureEnabled: false }} />
+            <Stack.Screen name="Schedule" component={ScheduleScreen} options={{ title: t('nav.schedule') }} />
+            <Stack.Screen
+              name="Checkout"
+              component={CheckoutScreen}
+              options={{ title: t('nav.checkout'), animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen name="Payment" component={PaymentScreen} options={{ title: t('nav.payment'), gestureEnabled: false }} />
             <Stack.Screen
               name="BookingSuccess"
               component={BookingSuccessScreen}
@@ -101,10 +124,14 @@ export default function RootNavigator() {
             <Stack.Screen
               name="Review"
               component={ReviewScreen}
-              options={{ title: 'Avaliar serviço', presentation: 'modal', animation: 'slide_from_bottom' }}
+              options={{ title: t('nav.review'), presentation: 'modal', animation: 'slide_from_bottom' }}
             />
             <Stack.Screen name="Chat" component={ChatScreen} />
-            <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Editar perfil', animation: 'slide_from_bottom' }} />
+            <Stack.Screen
+              name="EditProfile"
+              component={EditProfileScreen}
+              options={{ title: t('nav.editProfile'), animation: 'slide_from_bottom' }}
+            />
           </>
         ) : (
           <>
@@ -112,10 +139,14 @@ export default function RootNavigator() {
             <Stack.Screen
               name="PayoutAccount"
               component={PayoutAccountScreen}
-              options={{ title: 'Receber por Pix e cartão', animation: 'slide_from_bottom' }}
+              options={{ title: t('nav.payoutAccount'), animation: 'slide_from_bottom' }}
             />
             <Stack.Screen name="Chat" component={ChatScreen} />
-            <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Editar perfil', animation: 'slide_from_bottom' }} />
+            <Stack.Screen
+              name="EditProfile"
+              component={EditProfileScreen}
+              options={{ title: t('nav.editProfile'), animation: 'slide_from_bottom' }}
+            />
           </>
         )}
       </Stack.Navigator>

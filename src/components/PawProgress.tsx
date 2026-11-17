@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme';
+import { colors, makeStyles } from '../theme';
 
 /** Progresso em "patinhas": as já percorridas ficam laranja e a nova dá um pulinho. */
 export default function PawProgress({ total, current }: { total: number; current: number }) {
@@ -33,6 +33,6 @@ function Paw({ done, active }: { done: boolean; active: boolean }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = makeStyles(() => ({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-});
+}));
